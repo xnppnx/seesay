@@ -21,6 +21,9 @@ ROOT="$(cd "$HERE/.." && pwd)"
 PAYLOAD="$ROOT/payload"
 mkdir -p "$PAYLOAD/wheels" "$PAYLOAD/models/mirage" "$PAYLOAD/models/rapidocr" "$PAYLOAD/espeak"
 
+# NOTE: file downloads use <host>/<owner>/<repo>/resolve/<rev>/<file>.
+# The "/models/" segment belongs to the API endpoint (.../api/models/...), NOT
+# to resolve URLs; including it returns 404.
 HF_ENDPOINT="https://hf-mirror.com"
 PYTHON_PLATFORM="manylinux_2_28_aarch64"
 PYTHON_VERSION="cp313"   # device python3 is 3.13 (see work log)
@@ -39,7 +42,7 @@ echo "== [2/4] Mirage weights (hf-mirror, fixed revision) =="
 MIRAGE_REV="76c1e9e53381aca8fc3843c636216c96ff220122"
 for f in mirage.cact config.json; do
   curl -fL --retry 3 -o "$PAYLOAD/models/mirage/$f" \
-    "$HF_ENDPOINT/models/Cactus-Compute/mirage/resolve/$MIRAGE_REV/$f"
+    "$HF_ENDPOINT/Cactus-Compute/mirage/resolve/$MIRAGE_REV/$f"
 done
 
 echo "== [3/4] RapidOCR models =="
