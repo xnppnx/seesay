@@ -41,10 +41,18 @@ void BaseScreen::init() {
 
     nav_bar_ = std::make_unique<view::widgets::NavBar>(root_, view_model_, assets_);
     nav_bar_->build();
+    // SeeSay uses SPACE/ENTER as its primary keys; the template's 4~8 nav
+    // container is meaningless here and showed up as an empty bordered box.
+    // Keep the object alive for the key router, but hide the whole bar.
+    if (nav_bar_->root()) {
+        lv_obj_add_flag(nav_bar_->root(), LV_OBJ_FLAG_HIDDEN);
+    }
 
     content_ = lv_obj_create(root_);
     lv_obj_remove_style_all(content_);
-    lv_obj_set_size(content_, LV_PCT(100), view::kScreenHeight - view::kTitleBarHeight - view::kNavBarHeight);
+    // The nav bar is hidden for SeeSay, so the content area uses the full
+    // height below the title bar (bottom key hints live inside the content).
+    lv_obj_set_size(content_, LV_PCT(100), view::kScreenHeight - view::kTitleBarHeight);
     lv_obj_align(content_, LV_ALIGN_TOP_MID, 0, view::kTitleBarHeight);
     lv_obj_clear_flag(content_, LV_OBJ_FLAG_SCROLLABLE);
     reactive::bind_theme(content_, view_model_.dark_mode_subject(), reactive::ThemeRole::Surface);

@@ -45,6 +45,10 @@ PHOTO_PATH = os.environ.get("SEESAY_PHOTO", str(DATA_DIR / "capture.jpg"))
 # Engines read the DOWNSCALED image, never the raw 1640x1232 capture. On this
 # device a full-size photo made RapidOCR exhaust RAM and crash the machine.
 SMALL_PATH = os.environ.get("SEESAY_SMALL_PHOTO", str(DATA_DIR / "capture_small.jpg"))
+# On-screen thumbnail: PNG because the device LVGL has PNG decoding enabled
+# (JPEG decoding is off). Kept small (~120px wide) so it never crowds the text.
+THUMB_PATH = os.environ.get("SEESAY_THUMB", str(DATA_DIR / "thumb.png"))
+THUMB_MAX_WIDTH = int(os.environ.get("SEESAY_THUMB_WIDTH", "120"))
 SMALL_MAX_WIDTH = int(os.environ.get("SEESAY_SMALL_WIDTH", "800"))
 RESULT_PATH = os.environ.get("SEESAY_RESULT", str(DATA_DIR / "result.json"))
 STATUS_PATH = os.environ.get("SEESAY_STATUS", str(DATA_DIR / "status.txt"))
@@ -132,7 +136,11 @@ def capture() -> tuple[bool, str]:
 
 
 def downscale() -> bool:
-    """Shrink the raw capture so OCR cannot blow up RAM on this small device."""
+    """Shrink the raw capture so OCR cannot blow up RAM on this small device.
+
+    Also writes a small PNG thumbnail for the on-screen image widget (project
+    book 5.2). The two files are derived from one decode to stay cheap.
+    """
     try:
         from PIL import Image
         with Image.open(PHOTO_PATH) as im:
@@ -141,6 +149,14 @@ def downscale() -> bool:
                 new_h = round(im.height * SMALL_MAX_WIDTH / im.width)
                 im = im.resize((SMALL_MAX_WIDTH, new_h), Image.LANCZOS)
             im.save(SMALL_PATH, "JPEG", quality=85)
+
+            # Thumbnail: crop/resize into a fixed 120x90 frame, saved as PNG.
+            if im.width > THUMB_MAX_WIDTH:
+                th = round(im.height * THUMB_MAX_WIDTH / im.width)
+                thumb = im.resize((THUMB_MAX_WIDTH, th), Image.LANCZOS)
+            else:
+                thumb = im.copy()
+            thumb.save(THUMB_PATH, "PNG", optimize=True)
         return Path(SMALL_PATH).exists()
     except Exception as exc:  # noqa: BLE001
         print(f"[pipeline] downscale failed: {exc}", file=sys.stderr)
