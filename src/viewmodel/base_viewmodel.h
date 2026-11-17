@@ -68,6 +68,7 @@ public:
     // Voice-loop actions.
     bool request_capture();
     bool request_replay();
+    void greet();  // speak the startup line (project book 4.1)
     void poll_ocr();
     void poll_stage();  // reflect pipeline stage (ANALYZING etc.) on screen
     void clear_ocr_result();

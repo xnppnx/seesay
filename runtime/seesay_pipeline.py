@@ -165,8 +165,15 @@ def join_objects(labels: list[str]) -> str:
 
 
 def build_sentence(objects: list[dict], text_lines: list[str]) -> tuple[str, str, bool]:
-    """Return (speech, display, unsure)."""
-    labels = [o["label"] for o in objects[:5]]  # cap to keep it short
+    """Return (speech, display, unsure).
+
+    Project book 4.2 rule 3: hedge low-confidence results. Objects at >=0.7
+    are stated firmly ("I can see a desk"); objects between the 0.5 filter
+    and 0.7 get a softer lead-in ("I think I see a cup") so we never mislead
+    a blind user with false certainty.
+    """
+    items = objects[:5]  # cap to keep it short
+    labels = [o["label"] for o in items]
     text_blob = " ".join(text_lines).strip()
     unsure = not labels and not text_blob
 
@@ -175,21 +182,45 @@ def build_sentence(objects: list[dict], text_lines: list[str]) -> tuple[str, str
         display = "I am not sure.\nPlease try again."
         return speech, display, True
 
+    all_confident = all(float(o.get("confidence", 1.0)) >= 0.7 for o in items)
+    chinese_text = bool(text_blob) and has_cjk(text_blob)
+
+    # When the visible text is Chinese, speak the WHOLE sentence in Chinese
+    # (project book 4.1/4.2): mixing an English "I can see..." into a Chinese
+    # voice sounds wrong. Object labels stay as-is (Mirage outputs English),
+    # but the connecting words and punctuation are Chinese.
     parts: list[str] = []
     if labels:
-        parts.append("I can see " + join_objects(labels) + ".")
+        if chinese_text:
+            lead = "我看到：" if all_confident else "我想我看到："
+            parts.append(lead + "、".join(labels))
+        else:
+            lead = "I can see " if all_confident else "I think I see "
+            parts.append(lead + join_objects(labels) + ".")
     if text_blob:
-        parts.append("Text reads: " + text_blob + ".")
+        if chinese_text:
+            parts.append("识别到文字：" + text_blob + "。")
+        else:
+            parts.append("Text reads: " + text_blob + ".")
 
     speech = " ".join(parts)
-    display = ("I can see " + ", ".join(labels) + "\n" if labels else "")
-    display += ("Text: " + text_blob if text_blob else "")
+    display = (("我看到：" if chinese_text else
+                ("I can see " if all_confident else "I think I see ")) +
+               ", ".join(labels) + "\n" if labels else "")
+    if text_blob:
+        display += ("文字：" if chinese_text else "Text: ") + text_blob
     return speech, display.strip(), False
 
 
 def main() -> int:
     if len(sys.argv) > 1 and sys.argv[1] == "--replay":
         return replay_last()
+    if len(sys.argv) > 1 and sys.argv[1] == "--say":
+        # Speak one fixed line only (startup greeting / goodbye).
+        text = sys.argv[2] if len(sys.argv) > 2 else ""
+        if text:
+            speak(text, "cmn" if has_cjk(text) else "en")
+        return 0
 
     set_status("SHOOTING")
     speak("Taking photo.")

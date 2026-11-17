@@ -124,11 +124,18 @@ bool json_bool(const std::string& json, const char* key, bool fallback) {
     if (colon == std::string::npos) {
         return fallback;
     }
-    const auto tail = json.substr(colon + 1);
-    if (tail.find("true") == 0) {
+    // Skip whitespace after the colon (Python json.dumps writes "ok": true
+    // with a space). Without this, "ok" was read as false and a successful
+    // result was misreported as an error.
+    std::size_t pos = colon + 1;
+    while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t' ||
+                                 json[pos] == '\r' || json[pos] == '\n')) {
+        ++pos;
+    }
+    if (json.compare(pos, 4, "true") == 0) {
         return true;
     }
-    if (tail.find("false") == 0) {
+    if (json.compare(pos, 5, "false") == 0) {
         return false;
     }
     return fallback;
@@ -157,6 +164,7 @@ bool OcrService::start() {
         return false;
     }
     replay_.store(false);
+    say_.store(false);
     return true;
 }
 
@@ -165,7 +173,19 @@ bool OcrService::replay() {
     if (!busy_.compare_exchange_strong(expected, true)) {
         return false;
     }
+    say_.store(false);
     replay_.store(true);
+    return true;
+}
+
+bool OcrService::say(const std::string& text) {
+    bool expected = false;
+    if (!busy_.compare_exchange_strong(expected, true)) {
+        return false;
+    }
+    replay_.store(false);
+    say_text_ = text;
+    say_.store(true);
     return true;
 }
 
@@ -205,8 +225,23 @@ OcrJobResult OcrService::do_job() {
     const char* result_env = std::getenv("SEESAY_RESULT");
     const std::string result_path = (result_env && *result_env) ? result_env : (dir + "/result.json");
     const std::string err_path = dir + "/pipeline_err.txt";
-    std::filesystem::remove(result_path, ec);
 
+    // One-shot greeting / goodbye: just speak the given line, no result JSON.
+    if (say_.load()) {
+        say_.store(false);
+        std::string cmd = std::string(shell_quote(python_bin())) + " " +
+                          shell_quote(pipeline_script()) + " --say " +
+                          shell_quote(say_text_) +
+                          " >/dev/null 2>" + shell_quote(err_path);
+        const int status = std::system(cmd.c_str());
+        result.error = (status == 0) ? OcrErrorCode::SpokenOnly : OcrErrorCode::RecognitionFailed;
+        if (status != 0) {
+            result.detail = read_file(err_path);
+        }
+        return result;
+    }
+
+    std::filesystem::remove(result_path, ec);
     const bool is_replay = replay_.load();
     const std::string arg = is_replay ? "--replay" : "";
     std::string command = std::string(shell_quote(python_bin())) + " " +

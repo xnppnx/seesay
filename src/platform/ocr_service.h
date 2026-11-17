@@ -18,6 +18,7 @@ enum class OcrErrorCode {
     CameraFailed,
     RecognitionFailed,
     Busy,
+    SpokenOnly,  // a one-shot greeting/goodbye; UI should ignore it
 };
 
 // One capture + local-recognition round trip.
@@ -43,6 +44,8 @@ public:
     bool start();
     // Speak the last announcement again without re-shooting.
     bool replay();
+    // Speak one fixed line (startup greeting / goodbye) on the worker thread.
+    bool say(const std::string& text);
 
     bool busy() const { return busy_.load(); }
 
@@ -56,6 +59,8 @@ private:
     std::atomic<bool> busy_{false};
     std::atomic<bool> stop_{false};
     std::atomic<bool> replay_{false};
+    std::atomic<bool> say_{false};
+    std::string say_text_;
     std::mutex result_mutex_;
     bool has_result_{false};
     OcrJobResult pending_result_;

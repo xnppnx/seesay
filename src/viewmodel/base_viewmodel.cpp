@@ -370,6 +370,13 @@ bool BaseViewModel::request_replay() {
     return true;
 }
 
+void BaseViewModel::greet() {
+    // Project book 4.1: "SeeSay ready. Press the button to take a photo."
+    // Startup line, spoken once after the UI is up. Best effort: if the
+    // worker is busy it is skipped rather than blocking startup.
+    ocr_service_.say("SeeSay ready. Press the button to take a photo.");
+}
+
 void BaseViewModel::poll_ocr() {
     platform::OcrJobResult result;
     if (!ocr_service_.consume(result)) {
@@ -378,6 +385,10 @@ void BaseViewModel::poll_ocr() {
 
     ocr_busy_subject_.set(false);
     switch (result.error) {
+        case platform::OcrErrorCode::SpokenOnly:
+            // Startup greeting finished; do not touch status/result text.
+            std::fprintf(stderr, "[seesay] greeting spoken\n");
+            break;
         case platform::OcrErrorCode::None:
             if (!result.display.empty()) {
                 ocr_result_subject_.set(result.display.c_str());

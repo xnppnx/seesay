@@ -1,0 +1,28 @@
+#!/bin/sh
+# SeeSay post-install: make the deb work immediately after dpkg -i (project
+# book 11.1 #8 "works right after install, no manual dependency steps").
+#
+# Only the Python wheels need an install step, and they are all bundled as
+# local aarch64 wheels under /usr/share/seesay/payload/wheels -- NO network is
+# used. espeak-ng is a declared Debian dependency and is installed by apt.
+# Model weights are read in-place from the payload dir (no cache copy needed).
+set -e
+
+PAYLOAD="/usr/share/seesay/payload"
+WHEELS="$PAYLOAD/wheels"
+
+if [ "$1" = "configure" ] && [ -d "$WHEELS" ]; then
+    SYSTEM_PY="$(command -v python3 || true)"
+    if [ -n "$SYSTEM_PY" ]; then
+        echo "SeeSay: installing bundled offline Python wheels..."
+        # PEP 668: Debian marks the system Python as externally managed.
+        # --no-index + --find-links keeps this strictly offline/local.
+        "$SYSTEM_PY" -m pip install --break-system-packages --no-index \
+            --find-links "$WHEELS" \
+            cactus-compute rapidocr-onnxruntime onnxruntime opencv-python \
+            numpy shapely pyclipper Pillow || \
+            echo "SeeSay: wheel install had issues; run payload/install.sh manually" >&2
+    fi
+fi
+
+exit 0

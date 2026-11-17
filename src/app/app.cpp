@@ -203,6 +203,10 @@ int Application::run() {
     screen_manager.start();
     OcrController shortcuts(view_model, assets);
 
+    // Greet once the UI is up (project book 4.1 startup line). Spoken on the
+    // OCR worker so startup does not block; poll loop drives its completion.
+    view_model.greet();
+
     DarkModePersistence dark_mode_persistence{user_config_path, view_model.is_dark_mode()};
     auto* dark_mode_observer = lv_subject_add_observer(view_model.dark_mode_subject(),
                                                         persist_dark_mode_observer,
