@@ -1,0 +1,31 @@
+{
+  "app_name": "SeeSay",
+  "package_name": "seesay",
+  "version": "0.1.0",
+  "description": "Offline AI visual assistant that tells blind and low-vision users what is around them",
+
+  "store": {
+    "summary": "Point, shoot, hear what's around you",
+    "description": "SeeSay is a completely offline visual assistant for blind and low-vision users. Point the camera, press one button, and hear what is in front of you plus any text you are facing. No account, no internet, no recording. Just point, shoot, and listen.",
+    "categories": ["AI", "Hardware & IoT"],
+    "screenshots": [
+      "screenshot/seesay-main.png",
+      "screenshot/seesay-result.png",
+      "screenshot/seesay-keys.png"
+    ],
+    "icon": "assets/images/seesay.png",
+    "license": "Apache-2.0",
+    "source_repo": "https://github.com/xnppnx/seesay",
+    "author": { "github": "xnppnx", "display_name": "xnppnx", "email": "xnppnx@126.com" },
+    "share_code": "SEES",
+    "permissions": {
+      "camera": true,
+      "microphone": false,
+      "imu": false,
+      "network": false,
+      "additional_hardware": false,
+      "background_service": false,
+      "external_display": false
+    }
+  }
+}

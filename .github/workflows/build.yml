@@ -1,0 +1,42 @@
+name: Build CardputerZero deb
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y crossbuild-essential-arm64 ninja-build curl
+          python3 -m pip install --break-system-packages "cmake>=3.31"
+
+      - name: Show versions
+        run: |
+          cmake --version
+          aarch64-linux-gnu-g++ --version
+          ninja --version
+
+      - name: Fetch offline runtime payload (models, wheels, espeak-ng)
+        run: bash tools/fetch-offline-payload.sh
+
+      - name: Configure, build and package
+        run: cmake --workflow --preset cp0-cross-package
+
+      - name: List artifacts
+        run: ls -lh dist/
+
+      - name: Upload deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: cardputerzero-app
+          path: dist/*.deb
+          if-no-files-found: error
+          retention-days: 30

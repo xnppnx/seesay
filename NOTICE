@@ -1,0 +1,19 @@
+SeeSay
+Copyright 2026 xnppnx
+
+This product includes software derived from the CardputerZero application
+template, which is Copyright (c) 2026 M5Stack CardputerZero Community and
+licensed under the MIT License. The original MIT copyright and license
+notices are retained in the source file headers where applicable.
+
+The SeeSay-specific application code, the voice-loop pipeline, and associated
+assets are licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Third-party components bundled at build time keep their own licenses:
+  - Cactus / Mirage model        Apache-2.0
+  - RapidOCR + PaddleOCR models  Apache-2.0
+  - onnxruntime                  MIT
+  - espeak-ng (separate process) GPL-3.0-or-later
+
+espeak-ng is invoked only as an independent command-line process and is never
+linked into the application binary.
