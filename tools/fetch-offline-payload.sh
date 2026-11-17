@@ -76,7 +76,10 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SYSTEM_PY="$(command -v python3)"
 
 echo "Installing offline Python wheels..."
-"$SYSTEM_PY" -m pip install --no-index --find-links "$HERE/wheels" \
+# Debian trixie marks the system Python as externally managed (PEP 668), so pip
+# refuses to install without this switch. All packages come from the local,
+# offline wheels directory -- nothing is fetched from the network.
+"$SYSTEM_PY" -m pip install --break-system-packages --no-index --find-links "$HERE/wheels" \
   cactus-compute rapidocr-onnxruntime onnxruntime opencv-python numpy \
   shapely pyclipper Pillow
 

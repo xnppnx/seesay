@@ -12,9 +12,20 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-import tempfile
+from pathlib import Path
 
-WAV_PATH = os.environ.get("SEESAY_SPEECH_WAV", "/tmp/seesay_speech.wav")
+def _data_dir() -> str:
+    if os.environ.get("SEESAY_DATA_DIR"):
+        return os.environ["SEESAY_DATA_DIR"]
+    xdg = os.environ.get("XDG_DATA_HOME")
+    home = os.environ.get("HOME") or str(Path.home())
+    base = xdg if xdg else str(Path(home) / ".local" / "share")
+    return str(Path(base) / "seesay")
+
+
+DATA_DIR = Path(_data_dir())
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+WAV_PATH = os.environ.get("SEESAY_SPEECH_WAV", str(DATA_DIR / "speech.wav"))
 
 
 def build_and_play(text: str, voice: str) -> bool:

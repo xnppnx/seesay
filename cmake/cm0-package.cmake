@@ -11,7 +11,10 @@ set(APP_DEBIAN_REVISION "rev1" CACHE STRING "Debian package revision/vendor suff
 set(APP_DEBIAN_ARCHITECTURE "arm64" CACHE STRING "Debian package architecture")
 set(APP_MAINTAINER "xnppnx <xnppnx@126.com>" CACHE STRING "Debian package maintainer")
 set(APP_PACKAGE_DESCRIPTION "Offline AI visual assistant that tells you what is around you" CACHE STRING "Debian package summary")
-set(APP_INSTALL_SYSTEMD_SERVICE ON CACHE BOOL "Install a systemd service file for embedded deployments")
+# Follow the official CardputerZero app model: apps are launched from their
+# .desktop entry by APPLaunch inside the graphical user session. We do NOT ship
+# a systemd service (no background_service): that would need a dedicated user,
+# would break audio/screen/keyboard access, and would misreport permissions.
 
 set(APP_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/package")
 configure_file(
@@ -19,14 +22,6 @@ configure_file(
     "${APP_GENERATED_DIR}/${PROJECT_NAME}.desktop"
     @ONLY
 )
-
-if(APP_INSTALL_SYSTEMD_SERVICE)
-    configure_file(
-        "${CMAKE_CURRENT_LIST_DIR}/templates/app.service.in"
-        "${APP_GENERATED_DIR}/${PROJECT_NAME}.service"
-        @ONLY
-    )
-endif()
 
 install(TARGETS ${PROJECT_NAME}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -76,12 +71,6 @@ install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/assets/images/"
 install(FILES "${APP_GENERATED_DIR}/${PROJECT_NAME}.desktop"
     DESTINATION "${CMAKE_INSTALL_DATADIR}/APPLaunch/applications"
 )
-
-if(APP_INSTALL_SYSTEMD_SERVICE)
-    install(FILES "${APP_GENERATED_DIR}/${PROJECT_NAME}.service"
-        DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/system"
-    )
-endif()
 
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
     DESTINATION "${CMAKE_INSTALL_DOCDIR}"

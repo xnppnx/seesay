@@ -1,6 +1,7 @@
 {
   "app_name": "SeeSay",
   "package_name": "seesay",
+  "bin_name": "seesay",
   "version": "0.1.0",
   "description": "Offline AI visual assistant that tells blind and low-vision users what is around them",
 

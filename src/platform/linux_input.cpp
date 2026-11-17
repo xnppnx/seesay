@@ -54,10 +54,18 @@ size_t nav_key_to_index(uint32_t key) {
         switch (key) {
             case LV_KEY_ESC:
                 return 4;
+            case 'f':
+            case 'F':
+            case LV_KEY_UP:
+                return 0;  // Up -> first item
             case 'z':
             case 'Z':
             case LV_KEY_LEFT:
                 return 1;
+            case 'x':
+            case 'X':
+            case LV_KEY_DOWN:
+                return 4;  // Down -> last item
             case 'c':
             case 'C':
             case LV_KEY_RIGHT:

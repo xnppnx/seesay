@@ -27,7 +27,7 @@ void ButterScreen::build_content(lv_obj_t* content) {
     lv_obj_clear_flag(column, LV_OBJ_FLAG_SCROLLABLE);
 
     auto* font = assets().load_standard_font(14, app::StandardFontWeight::Regular);
-    auto* small_font = assets().load_standard_font(11, app::StandardFontWeight::Regular);
+    auto* small_font = assets().load_standard_font(12, app::StandardFontWeight::Regular);
 
     auto* prompt = lv_label_create(column);
     lv_label_set_text(prompt, "Writing note:");

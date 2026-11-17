@@ -10,10 +10,11 @@ Each heavy engine runs in a separate short-lived process so its memory is
 freed before the next loads (device has ~132 MB free RAM). Nothing here talks
 to the network.
 
-Outputs:
-  /tmp/seesay_result.json   final structured result (read by the C++ app)
-  /tmp/seesay_status.txt    current stage (READY/SHOOTING/ANALYZING/...)
-  /tmp/seesay_last_speech.txt  last spoken sentence (for replay)
+Outputs (all under the app data dir: $XDG_DATA_HOME/seesay or
+$HOME/.local/share/seesay, per the CardputerZero guideline):
+  result.json      final structured result (read by the C++ app)
+  status.txt       current stage (READY/SHOOTING/ANALYZING/...)
+  last_speech.txt  last spoken sentence (for replay)
 """
 from __future__ import annotations
 
@@ -24,10 +25,30 @@ import sys
 from pathlib import Path
 
 RUNTIME_DIR = Path(__file__).resolve().parent
-PHOTO_PATH = os.environ.get("SEESAY_PHOTO", "/tmp/seesay_capture.jpg")
-RESULT_PATH = os.environ.get("SEESAY_RESULT", "/tmp/seesay_result.json")
-STATUS_PATH = os.environ.get("SEESAY_STATUS", "/tmp/seesay_status.txt")
-SPEECH_PATH = os.environ.get("SEESAY_LAST_SPEECH", "/tmp/seesay_last_speech.txt")
+
+# All runtime files live under the app's own data directory, per the
+# CardputerZero guideline ("configuration files: $HOME/.config/YourApp/").
+# XDG_DATA_HOME/seesay, falling back to $HOME/.local/share/seesay.
+def _data_dir() -> Path:
+    if os.environ.get("SEESAY_DATA_DIR"):
+        return Path(os.environ["SEESAY_DATA_DIR"])
+    xdg = os.environ.get("XDG_DATA_HOME")
+    home = os.environ.get("HOME") or str(Path.home())
+    base = Path(xdg) if xdg else Path(home) / ".local" / "share"
+    return base / "seesay"
+
+
+DATA_DIR = _data_dir()
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+PHOTO_PATH = os.environ.get("SEESAY_PHOTO", str(DATA_DIR / "capture.jpg"))
+# Engines read the DOWNSCALED image, never the raw 1640x1232 capture. On this
+# device a full-size photo made RapidOCR exhaust RAM and crash the machine.
+SMALL_PATH = os.environ.get("SEESAY_SMALL_PHOTO", str(DATA_DIR / "capture_small.jpg"))
+SMALL_MAX_WIDTH = int(os.environ.get("SEESAY_SMALL_WIDTH", "800"))
+RESULT_PATH = os.environ.get("SEESAY_RESULT", str(DATA_DIR / "result.json"))
+STATUS_PATH = os.environ.get("SEESAY_STATUS", str(DATA_DIR / "status.txt"))
+SPEECH_PATH = os.environ.get("SEESAY_LAST_SPEECH", str(DATA_DIR / "last_speech.txt"))
 PY = sys.executable or "python3"
 
 
@@ -74,7 +95,7 @@ def write_result(payload: dict) -> None:
 def run_script(name: str, *args: str) -> dict:
     try:
         proc = subprocess.run([PY, str(RUNTIME_DIR / name), *args],
-                              timeout=90, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              timeout=45, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                               text=True)
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "error": str(exc)}
@@ -108,6 +129,22 @@ def capture() -> tuple[bool, str]:
     if proc.returncode != 0 or not Path(PHOTO_PATH).exists():
         return False, proc.stderr.strip()[:200] or "camera failed"
     return True, ""
+
+
+def downscale() -> bool:
+    """Shrink the raw capture so OCR cannot blow up RAM on this small device."""
+    try:
+        from PIL import Image
+        with Image.open(PHOTO_PATH) as im:
+            im = im.convert("RGB")
+            if im.width > SMALL_MAX_WIDTH:
+                new_h = round(im.height * SMALL_MAX_WIDTH / im.width)
+                im = im.resize((SMALL_MAX_WIDTH, new_h), Image.LANCZOS)
+            im.save(SMALL_PATH, "JPEG", quality=85)
+        return Path(SMALL_PATH).exists()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[pipeline] downscale failed: {exc}", file=sys.stderr)
+        return False
 
 
 def has_cjk(text: str) -> bool:
@@ -168,12 +205,15 @@ def main() -> int:
     set_status("ANALYZING")
     speak("Analyzing the scene.")
 
-    described = run_script("seesay_describe.py", PHOTO_PATH)
+    # Always feed the engines a downscaled image to protect the small RAM.
+    analysis_image = SMALL_PATH if downscale() else PHOTO_PATH
+
+    described = run_script("seesay_describe.py", analysis_image)
     objects = described.get("objects", []) if described.get("ok") else []
     if not isinstance(objects, list):
         objects = []
 
-    read = run_script("seesay_readtext.py", PHOTO_PATH)
+    read = run_script("seesay_readtext.py", analysis_image)
     lines = read.get("lines", []) if read.get("ok") else []
     if not isinstance(lines, list):
         lines = []

@@ -66,6 +66,10 @@ struct DarkModePersistence {
     bool last_dark_mode;
 };
 
+// Config follows the CardputerZero guideline: "$HOME/.config/YourApp/".
+// APP_CONFIG_FILE (/etc/seesay.conf) is only the read-only shipped default;
+// any user change is written to ~/.config/seesay/seesay.conf instead, so the
+// package's conffile is never modified at runtime.
 std::string writable_config_path() {
 #if USE_DESKTOP
     return APP_CONFIG_FILE;

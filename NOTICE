@@ -3,11 +3,15 @@ Copyright 2026 xnppnx
 
 This product includes software derived from the CardputerZero application
 template, which is Copyright (c) 2026 M5Stack CardputerZero Community and
-licensed under the MIT License. The original MIT copyright and license
-notices are retained in the source file headers where applicable.
+licensed under the MIT License. The original MIT copyright and SPDX headers are
+deliberately retained on the template-derived source files, as MIT requires.
+Those headers describe the ORIGINAL template work only.
 
-The SeeSay-specific application code, the voice-loop pipeline, and associated
-assets are licensed under the Apache License, Version 2.0 (see LICENSE).
+All SeeSay-specific modifications, the voice-loop pipeline (runtime/*.py), and
+the SeeSay assets are licensed under the Apache License, Version 2.0 (see
+LICENSE). Where a source file carries an MIT header, our changes to that file
+are additionally offered under Apache-2.0; both licenses permit redistribution
+and commercial use, and this dual notice is intentional, not an oversight.
 
 Third-party components bundled at build time keep their own licenses:
   - Cactus / Mirage model        Apache-2.0

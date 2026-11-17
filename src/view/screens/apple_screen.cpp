@@ -39,7 +39,7 @@ void AppleScreen::build_content(lv_obj_t* content) {
     lv_obj_clear_flag(column, LV_OBJ_FLAG_SCROLLABLE);
 
     auto* font = assets().load_standard_font(14, app::StandardFontWeight::Regular);
-    auto* small_font = assets().load_standard_font(11, app::StandardFontWeight::Regular);
+    auto* small_font = assets().load_standard_font(12, app::StandardFontWeight::Regular);
 
     // Recognized text: scrollable, wraps long Chinese/English text.
     auto* result = lv_label_create(column);

@@ -54,7 +54,7 @@ NotesModel::NotesModel() : path_(default_path()) {}
 
 std::string NotesModel::default_path() {
     if (const char* home = std::getenv("HOME")) {
-        return (std::filesystem::path(home) / ".config" / "pocketnotes" / "notes.txt").string();
+        return (std::filesystem::path(home) / ".config" / "seesay" / "notes.txt").string();
     }
     return "notes.txt";
 }

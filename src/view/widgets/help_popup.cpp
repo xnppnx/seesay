@@ -76,7 +76,7 @@ void HelpPopup::build() {
     lv_obj_align(title_, LV_ALIGN_TOP_LEFT, 12, 9);
 
     page_badge_ = lv_label_create(panel_);
-    auto* badge_font = assets_.load_standard_font(11);
+    auto* badge_font = assets_.load_standard_font(12);
     lv_obj_set_style_text_font(page_badge_, badge_font ? badge_font : &lv_font_montserrat_12, 0);
     lv_obj_set_style_radius(page_badge_, 3, 0);
     lv_obj_set_style_pad_hor(page_badge_, 6, 0);
@@ -92,7 +92,7 @@ void HelpPopup::build() {
     lv_obj_set_style_pad_row(rows, 1, 0);
     lv_obj_clear_flag(rows, LV_OBJ_FLAG_SCROLLABLE);
 
-    auto* key_font = assets_.load_standard_font(11);
+    auto* key_font = assets_.load_standard_font(12);
     auto* action_font = assets_.load_standard_font(12, app::StandardFontWeight::Regular);
     for (auto& widgets : rows_) {
         widgets.row = lv_obj_create(rows);
@@ -117,10 +117,10 @@ void HelpPopup::build() {
     footer_ = lv_label_create(panel_);
     lv_label_set_text(footer_, "fn+H / ESC  Close   PRSC  Screenshot");
     lv_label_set_long_mode(footer_, LV_LABEL_LONG_CLIP);
-    auto* footer_font = assets_.load_standard_font(10);
-    lv_obj_set_style_text_font(footer_, footer_font ? footer_font : &lv_font_montserrat_10, 0);
+    auto* footer_font = assets_.load_standard_font(12);
+    lv_obj_set_style_text_font(footer_, footer_font ? footer_font : &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_align(footer_, LV_TEXT_ALIGN_LEFT, 0);
-    lv_obj_set_size(footer_, LV_SIZE_CONTENT, 12);
+    lv_obj_set_size(footer_, LV_SIZE_CONTENT, 14);
     lv_obj_align(footer_, LV_ALIGN_BOTTOM_LEFT, 12, -7);
 
     lv_subject_add_observer_obj(view_model_.dark_mode_subject(),

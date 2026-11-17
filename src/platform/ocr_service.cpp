@@ -28,6 +28,25 @@ std::string pipeline_script() {
            "/seesay_pipeline.py";
 }
 
+// App data directory, matching the Python scripts: $XDG_DATA_HOME/seesay or
+// $HOME/.local/share/seesay (CardputerZero guideline: per-app data location).
+std::string data_dir() {
+    if (const char* explicit_dir = std::getenv("SEESAY_DATA_DIR")) {
+        if (*explicit_dir) {
+            return explicit_dir;
+        }
+    }
+    const char* xdg = std::getenv("XDG_DATA_HOME");
+    if (xdg && *xdg) {
+        return std::string(xdg) + "/seesay";
+    }
+    const char* home = std::getenv("HOME");
+    if (home && *home) {
+        return std::string(home) + "/.local/share/seesay";
+    }
+    return "/tmp/seesay";  // last-resort fallback only
+}
+
 // Wrap a value in single quotes for safe shell use.
 std::string shell_quote(const std::string& value) {
     std::string out = "'";
@@ -180,8 +199,12 @@ void OcrService::run() {
 OcrJobResult OcrService::do_job() {
     OcrJobResult result;
 
-    const std::string result_path = env_or("SEESAY_RESULT", "/tmp/seesay_result.json");
+    const std::string dir = data_dir();
     std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    const char* result_env = std::getenv("SEESAY_RESULT");
+    const std::string result_path = (result_env && *result_env) ? result_env : (dir + "/result.json");
+    const std::string err_path = dir + "/pipeline_err.txt";
     std::filesystem::remove(result_path, ec);
 
     const bool is_replay = replay_.load();
@@ -191,11 +214,11 @@ OcrJobResult OcrService::do_job() {
     if (!arg.empty()) {
         command += " " + shell_quote(arg);
     }
-    command += " >/dev/null 2>" + shell_quote("/tmp/seesay_pipeline_err.txt");
+    command += " >/dev/null 2>" + shell_quote(err_path);
 
     const int status = std::system(command.c_str());
     const std::string payload = read_file(result_path);
-    const std::string err = read_file("/tmp/seesay_pipeline_err.txt");
+    const std::string err = read_file(err_path);
 
     if (is_replay) {
         // Replay has no result JSON; just report success/failure.

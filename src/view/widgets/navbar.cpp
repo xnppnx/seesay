@@ -20,7 +20,10 @@ struct IconSpec {
     lv_event_cb_t click_cb;
 };
 
-constexpr std::array<int32_t, 5> kNavButtonXOffsets = {30, 17, 2, -15, -30};
+// Official CardputerZero key-spec: 5 bottom hints aligned under number keys
+// 4~8, icon centers at X = 49/105/161/217/273, size 22x22.
+constexpr int32_t kNavIconSize = 22;
+constexpr std::array<int32_t, 5> kNavIconCenterX = {49, 105, 161, 217, 273};
 
 struct ShortcutSpec {
     const char* key;
@@ -65,10 +68,6 @@ void NavBar::build() {
     lv_obj_set_size(core_obj_, LV_PCT(100), kNavBarHeight);
     lv_obj_align(core_obj_, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_clear_flag(core_obj_, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_flex_flow(core_obj_, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(core_obj_, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_left(core_obj_, 8, 0);
-    lv_obj_set_style_pad_right(core_obj_, 8, 0);
     reactive::bind_theme(core_obj_, view_model_.dark_mode_subject(), reactive::ThemeRole::Bar);
 
     create_icon_buttons();
@@ -126,8 +125,8 @@ void NavBar::create_icon_buttons() {
     for (size_t i = 0; i < icon_buttons_.size(); ++i) {
         icon_buttons_[i] = std::make_unique<IconButton>(core_obj_,
                                                         view_model_,
-                                                        32,
-                                                        24,
+                                                        kNavIconSize,
+                                                        kNavIconSize,
                                                         "",
                                                         icon_font_ ? icon_font_ : &lv_font_montserrat_14,
                                                         light_color,
@@ -136,7 +135,11 @@ void NavBar::create_icon_buttons() {
                                                         &view_model_,
                                                         true);
         icon_buttons_[i]->build();
-        lv_obj_set_style_translate_x(icon_buttons_[i]->root(), kNavButtonXOffsets[i], 0);
+        // Center each icon on the official key positions. LEFT_MID anchors the
+        // left edge at x=0 and vertically centers in the 30px bar (y=155); -2
+        // shifts the 22px icon up so its center lands on y=153.
+        lv_obj_align(icon_buttons_[i]->root(), LV_ALIGN_LEFT_MID,
+                     kNavIconCenterX[i] - kNavIconSize / 2, -2);
         platform::register_nav_button(i, icon_buttons_[i]->root());
     }
 }
