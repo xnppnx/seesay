@@ -86,12 +86,7 @@ echo "Installing offline Python wheels..."
 echo "Installing espeak-ng (GPL, kept as separate binaries)..."
 dpkg -i "$HERE"/espeak/*.deb || apt-get -f install -y
 
-echo "Placing model weights into the offline cache..."
-CACHE_HOME="/var/lib/seesay/.cache"
-mkdir -p "$CACHE_HOME/cactus/models/mirage/76c1e9e53381aca8fc3843c636216c96ff220122"
-cp "$HERE"/models/mirage/* \
-  "$CACHE_HOME/cactus/models/mirage/76c1e9e53381aca8fc3843c636216c96ff220122/"
-
+echo "Model weights are read in-place from $HERE/models (no per-user cache)."
 echo "Payload install complete."
 INSTALL
 chmod +x "$PAYLOAD/install.sh"

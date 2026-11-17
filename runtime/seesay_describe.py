@@ -5,7 +5,9 @@ Runs as its OWN process and exits, so Mirage's memory is released before the
 OCR engine loads (the device has ~132 MB free RAM).
 
 Offline is enforced: nothing may reach HuggingFace at runtime.
-Weights/engine paths are supplied by the launcher via CACTUS_* env vars.
+The bundled weight file is passed directly to Mirage(weights=...), so the app
+does not depend on any per-user HF cache path (which broke when APPLaunch ran
+it as the login user instead of a dedicated service user).
 """
 from __future__ import annotations
 
@@ -29,6 +31,20 @@ try:
     MIN_CONFIDENCE = float(os.environ.get("SEESAY_MIN_CONFIDENCE", "0.5"))
 except ValueError:
     MIN_CONFIDENCE = 0.5
+
+
+def resolve_weights() -> str | None:
+    """Locate the bundled Mirage weight file, independent of any user cache."""
+    candidates = [
+        os.environ.get("SEESAY_MIRAGE_WEIGHTS", ""),
+        "/usr/share/seesay/payload/models/mirage/mirage.cact",
+        str(__import__("pathlib").Path(__file__).resolve().parent.parent /
+            "payload" / "models" / "mirage" / "mirage.cact"),
+    ]
+    for path in candidates:
+        if path and os.path.isfile(path):
+            return path
+    return None
 
 
 def clean_label(value) -> str:
@@ -116,7 +132,12 @@ def main() -> int:
         return 1
 
     try:
-        model = Mirage()
+        weights = resolve_weights()
+        if weights:
+            model = Mirage(weights=weights)
+        else:
+            # Fallback: let cactus use its default cache lookup.
+            model = Mirage()
         result = model.describe(image, sections=["scene", "objects"])
     except Exception as exc:  # noqa: BLE001
         print(json.dumps({"ok": False, "error": f"mirage failed: {exc}"}))
