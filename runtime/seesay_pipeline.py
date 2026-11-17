@@ -121,8 +121,13 @@ def capture() -> tuple[bool, str]:
             os.remove(PHOTO_PATH)
     except OSError:
         pass
-    cmd = ["rpicam-jpeg", "-n", "-t", "1200", "--width", "1640",
-           "--height", "1232", "-q", "85", "-o", PHOTO_PATH]
+    # The CSI camera is mounted upside down on this device: raw frames come
+    # out rotated 180 degrees. Flip both axes at capture time so the photo,
+    # the on-screen thumbnail, AND the Mirage/OCR engines all see an upright
+    # image (verified on-device: --hflip --vflip corrects the orientation).
+    cmd = ["rpicam-jpeg", "-n", "-t", "100", "--width", "1640",
+           "--height", "1232", "-q", "85", "--hflip", "--vflip",
+           "-o", PHOTO_PATH]
     try:
         proc = subprocess.run(cmd, timeout=30, stdout=subprocess.DEVNULL,
                               stderr=subprocess.PIPE, text=True)
@@ -249,11 +254,15 @@ def main() -> int:
         speak(speech)
         return 1
 
+    # Instant feedback: build the thumbnail FIRST and flip the UI to ANALYZING
+    # so the just-taken photo lands on screen with minimal delay. Recognition
+    # voice and the engines run after; the user already sees the photo was
+    # captured. (project book 7.1 "即时反馈优先")
+    downscaled_ok = downscale()
+    analysis_image = SMALL_PATH if downscaled_ok else PHOTO_PATH
     set_status("ANALYZING")
-    speak("Analyzing the scene.")
 
-    # Always feed the engines a downscaled image to protect the small RAM.
-    analysis_image = SMALL_PATH if downscale() else PHOTO_PATH
+    speak("Analyzing the scene.")
 
     described = run_script("seesay_describe.py", analysis_image)
     objects = described.get("objects", []) if described.get("ok") else []

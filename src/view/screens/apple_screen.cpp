@@ -96,8 +96,11 @@ void thumb_observer(lv_observer_t* observer, lv_subject_t* subject) {
     }
     const char* value = lv_subject_get_string(subject);
     const std::string state(value ? value : "");
-    const bool show = (state == "DONE" || state == "REPORTING" ||
-                       state == "UNSURE");
+    // Show as soon as ANALYZING: by then the pipeline has already written the
+    // thumbnail right after capture, so the photo appears ~1s after the press
+    // while recognition continues in the background (project book 7.1).
+    const bool show = (state == "ANALYZING" || state == "DONE" ||
+                       state == "REPORTING" || state == "UNSURE");
     if (show) {
         lv_image_set_src(image, thumb_lvgl_path().c_str());
         lv_obj_remove_flag(image, LV_OBJ_FLAG_HIDDEN);

@@ -61,8 +61,11 @@ bool OcrController::handle_key(uint32_t key, bool long_pressed) {
         return true;
     }
 
-    // OK / Enter / short ESC = replay the last announcement.
-    if (key == LV_KEY_ENTER || key == LV_KEY_ESC) {
+    // Enter / OK = replay the last announcement. ESC is intentionally NOT a
+    // replay key: a long-press ESC must go straight to the system HOME with
+    // no side effect, and a short-press ESC does nothing here (project book
+    // 6.1: short ESC = ESC, long ESC = HOME system behaviour).
+    if (key == LV_KEY_ENTER) {
         view_model_.request_replay();
         return true;
     }
