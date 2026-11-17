@@ -69,6 +69,7 @@ public:
     bool request_capture();
     bool request_replay();
     void poll_ocr();
+    void poll_stage();  // reflect pipeline stage (ANALYZING etc.) on screen
     void clear_ocr_result();
 
     const std::string& draft() const;

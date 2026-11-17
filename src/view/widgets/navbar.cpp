@@ -140,6 +140,11 @@ void NavBar::create_icon_buttons() {
         // shifts the 22px icon up so its center lands on y=153.
         lv_obj_align(icon_buttons_[i]->root(), LV_ALIGN_LEFT_MID,
                      kNavIconCenterX[i] - kNavIconSize / 2, -2);
+        // SeeSay is an audio-first app: the template's 4~8 icons (quit/bold/
+        // theme/info/next) are meaningless here and overlapped the single-line
+        // key hints in project book 5.2. Keep them constructed for the nav-key
+        // router, but never display them.
+        lv_obj_add_flag(icon_buttons_[i]->root(), LV_OBJ_FLAG_HIDDEN);
         platform::register_nav_button(i, icon_buttons_[i]->root());
     }
 }
@@ -190,12 +195,9 @@ void NavBar::update_icon_buttons() {
 
         button->set_text(icons[i].text);
         if (button->root()) {
-            if (is_butter_page) {
-                lv_obj_add_flag(button->root(), LV_OBJ_FLAG_HIDDEN);
-            }
-            else {
-                lv_obj_remove_flag(button->root(), LV_OBJ_FLAG_HIDDEN);
-            }
+            // SeeSay keeps the 4~8 template icons hidden on every page so they
+            // never overlap the bottom key-hint line (project book 5.2).
+            lv_obj_add_flag(button->root(), LV_OBJ_FLAG_HIDDEN);
             lv_obj_remove_event_cb(button->root(), toggle_theme_cb);
             lv_obj_remove_event_cb(button->root(), toggle_page_cb);
             lv_obj_remove_event_cb(button->root(), toggle_bold_text_cb);

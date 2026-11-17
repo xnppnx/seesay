@@ -8,8 +8,36 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
+#include <fstream>
+#include <sstream>
+#include <string>
 
 namespace viewmodel {
+namespace {
+
+// Same data-dir resolution as the Python pipeline / ocr_service, so the UI
+// reads the exact stage file the pipeline writes.
+std::string stage_status_path() {
+    if (const char* explicit_dir = std::getenv("SEESAY_DATA_DIR")) {
+        if (*explicit_dir) {
+            return std::string(explicit_dir) + "/status.txt";
+        }
+    }
+    if (const char* xdg = std::getenv("XDG_DATA_HOME")) {
+        if (*xdg) {
+            return std::string(xdg) + "/seesay/status.txt";
+        }
+    }
+    if (const char* home = std::getenv("HOME")) {
+        if (*home) {
+            return std::string(home) + "/.local/share/seesay/status.txt";
+        }
+    }
+    return "/tmp/seesay/status.txt";
+}
+
+} // namespace
 namespace {
 
 int page_to_int(model::AppPage page) {
@@ -375,6 +403,33 @@ void BaseViewModel::poll_ocr() {
             ocr_result_subject_.set("Error.");
             set_status("ERROR");
             break;
+    }
+}
+
+void BaseViewModel::poll_stage() {
+    // Only while a job is running; once finished, poll_ocr sets the final
+    // state and we must not overwrite it with a stale stage file.
+    if (!ocr_busy_subject_.value()) {
+        return;
+    }
+    std::ifstream in(stage_status_path());
+    if (!in) {
+        return;
+    }
+    std::string stage;
+    std::getline(in, stage);
+    // Strip CR in case the file was written with CRLF.
+    if (!stage.empty() && stage.back() == '\r') {
+        stage.pop_back();
+    }
+    if (stage.empty()) {
+        return;
+    }
+    // Pipeline writes SHOOTING / ANALYZING / REPORTING / UNSURE / DONE / ERROR.
+    // Reflect the in-flight ones on screen; the terminal ones are set by
+    // poll_ocr when the result arrives.
+    if (stage == "SHOOTING" || stage == "ANALYZING" || stage == "REPORTING") {
+        set_status(stage.c_str());
     }
 }
 

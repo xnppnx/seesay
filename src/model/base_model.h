@@ -27,7 +27,7 @@ public:
     void toggle_page();
 
 private:
-    bool dark_mode_ = false;
+    bool dark_mode_ = true;  // project book 5.1: dark background, high contrast
     AppPage current_page_ = AppPage::Apple;
 };
 

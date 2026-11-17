@@ -87,6 +87,7 @@ bool OcrController::global_key_listener(uint32_t key,
 void OcrController::poll_timer_cb(lv_timer_t* timer) {
     auto* controller = static_cast<OcrController*>(lv_timer_get_user_data(timer));
     if (controller) {
+        controller->view_model_.poll_stage();
         controller->view_model_.poll_ocr();
     }
 }
