@@ -23,7 +23,7 @@ namespace {
 // Unicode glyph so it inherits the label color, keeping dot and word in sync.
 // Also surfaces the ANALYZING state on screen (previously audio-only).
 void status_observer(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* label = static_cast<lv_label_t*>(lv_observer_get_target_obj(observer));
+    auto* label = static_cast<lv_obj_t*>(lv_observer_get_target_obj(observer));
     if (!label) {
         return;
     }
