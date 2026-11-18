@@ -1,0 +1,17 @@
+name: Test zig cross compile
+on: workflow_dispatch
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install zig via pip
+        run: |
+          python3 -m pip install --break-system-packages ziglang
+          echo "$(python3 -c 'import ziglang,os;print(os.path.dirname(ziglang.__file__))')" >> $GITHUB_PATH
+          zig version
+      - name: Cross compile hello to aarch64
+        run: |
+          echo 'int main(){return 0;}' > /tmp/t.c
+          zig cc --target=aarch64-linux-gnu /tmp/t.c -o /tmp/t
+          file /tmp/t
