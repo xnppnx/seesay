@@ -61,9 +61,9 @@ $CXX $CXXFLAGS -O2 -std=c++17 \
   -Wl,--start-group \
   "$OCV/lib/libopencv_core.a" \
   "$OCV/lib/libopencv_imgproc.a" \
-  "$OCV/lib/libkleidicv.a" \
-  "$OCV/lib/libkleidicv_hal.a" \
-  "$OCV/lib/libkleidicv_thread.a" \
+  "$OCV/lib/opencv5/3rdparty/libkleidicv.a" \
+  "$OCV/lib/opencv5/3rdparty/libkleidicv_hal.a" \
+  "$OCV/lib/opencv5/3rdparty/libkleidicv_thread.a" \
   -Wl,--end-group \
   -lpthread -ldl -lz
 # NOTE: stb_image is self-contained (JPEG/PNG decoders compiled in), so no
