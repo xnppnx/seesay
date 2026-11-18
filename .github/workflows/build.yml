@@ -68,13 +68,19 @@ jobs:
       - name: Build ncnn
         run: cmake --build ncnn-build -j4
 
-      - name: Collect ncnn artifacts
+      - name: Collect ncnn artifacts + sherpa wheels
         run: |
           mkdir -p ncnn-out
           cp ncnn-build/src/libncnn.a ncnn-out/ 2>/dev/null || true
           cp ncnn-build/benchmark/benchncnn ncnn-out/ 2>/dev/null || true
           cp ncnn-build/examples/ppocrv5 ncnn-out/ 2>/dev/null || true
           cp ncnn-20261020/benchmark/*.param ncnn-out/ 2>/dev/null || true
+          # Stage-0 TTS benchmark: sherpa-onnx 2.x aarch64 wheels (境外网络秒下)
+          # Force arm64/py3.13 platform since this runner is x86.
+          pip download --no-deps --only-binary=:all: -d ncnn-out \
+            --platform manylinux2014_aarch64 --python-version 3.13 \
+            --implementation cp --abi cp313 \
+            sherpa-onnx==2.0.1 sherpa-onnx-core==2.0.1 2>&1 | tail -8 || true
           ls -lh ncnn-out/
 
       - name: Upload ncnn build
