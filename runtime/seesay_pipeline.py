@@ -63,6 +63,22 @@ SMALL_MAX_WIDTH = int(os.environ.get("SEESAY_SMALL_WIDTH", "800"))
 RESULT_PATH = os.environ.get("SEESAY_RESULT", str(DATA_DIR / "result.json"))
 STATUS_PATH = os.environ.get("SEESAY_STATUS", str(DATA_DIR / "status.txt"))
 SPEECH_PATH = os.environ.get("SEESAY_LAST_SPEECH", str(DATA_DIR / "last_speech.txt"))
+
+# Stage-3: fixed prompts use pre-recorded WAVs played asynchronously (0 delay,
+# no espeak cold start, no blocking of the recognition flow). Dynamic result
+# sentences still go through espeak-ng as a separate process (GPL isolation).
+# Set SEESAY_AUDIO_PREREC=0 to force all speech through espeak (fallback).
+AUDIO_DIR = os.environ.get("SEESAY_AUDIO_DIR", "/usr/share/seesay/audio")
+PREREC_ENABLED = os.environ.get("SEESAY_AUDIO_PREREC", "1") != "0"
+# Exact fixed phrases (project book 4.1) -> bundled WAV filename.
+PREREC_MAP = {
+    "SeeSay ready. Press the button to take a photo.": "ready.wav",
+    "Taking photo.": "taking_photo.wav",
+    "Analyzing the scene.": "analyzing.wav",
+    "I am not sure. Please try again.": "not_sure.wav",
+    "Camera failed. Please try again.": "camera_failed.wav",
+    "Goodbye.": "goodbye.wav",
+}
 PY = sys.executable or "python3"
 
 
@@ -74,11 +90,29 @@ def set_status(value: str) -> None:
 
 
 def speak(text: str, voice: str = "en") -> None:
-    """Synthesize AND play one line. Blocking on purpose: audio must finish."""
+    """Play one line. Fixed prompts use pre-recorded WAV (async, 0 delay);
+    dynamic sentences use espeak-ng (blocking, so the announcement finishes).
+    """
     try:
         Path(SPEECH_PATH).write_text(text, encoding="utf-8")
     except OSError:
         pass
+
+    # Stage-3 fast path: fixed prompt with a bundled WAV -> play asynchronously.
+    # Do NOT wait: recognition must continue while the prompt is being spoken.
+    wav_name = PREREC_MAP.get(text)
+    if PREREC_ENABLED and wav_name:
+        wav_path = Path(AUDIO_DIR) / wav_name
+        if wav_path.exists():
+            try:
+                subprocess.Popen(["aplay", "-q", str(wav_path)],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return  # fire-and-forget: no espeak, no blocking
+            except Exception as exc:  # noqa: BLE001 - fall through to espeak
+                print(f"[pipeline] prerec play failed, using espeak: {exc}", file=sys.stderr)
+        # WAV missing -> fall back to espeak so the user still hears the prompt.
+
+    # Default path: espeak-ng synthesizes + plays (separate process, blocking).
     try:
         subprocess.run([PY, str(RUNTIME_DIR / "seesay_speak.py"), text, voice],
                        timeout=60, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
