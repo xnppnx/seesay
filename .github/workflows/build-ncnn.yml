@@ -1,0 +1,52 @@
+name: Build ncnn for AArch64 (stage-0 benchmark)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ncnn:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Install cross toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y crossbuild-essential-arm64 cmake ninja-build git
+
+      - name: Fetch ncnn source
+        run: |
+          curl -sL https://github.com/Tencent/ncnn/archive/refs/tags/20261020.tar.gz -o ncnn.tar.gz
+          tar xzf ncnn.tar.gz
+          echo "ncnn source ready: $(ls -d ncnn-*)"
+
+      - name: Configure (cross compile, CPU only)
+        run: |
+          cmake -S ncnn-20261020 -B build \
+            -DCMAKE_TOOLCHAIN_FILE=ncnn-20261020/toolchains/aarch64-linux-gnu.toolchain.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DNCNN_VULKAN=OFF \
+            -DNCNN_BUILD_EXAMPLES=ON \
+            -DNCNN_BUILD_BENCHMARK=ON \
+            -DNCNN_BUILD_TESTS=OFF \
+            -DNCNN_BUILD_TOOLS=OFF \
+            -DNCNN_SYSTEM_GLSLANG=OFF
+
+      - name: Build (parallel, cloud has RAM)
+        run: cmake --build build -j4
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p out
+          cp build/src/libncnn.a out/ 2>/dev/null || true
+          cp build/benchmark/benchncnn out/ 2>/dev/null || true
+          cp build/examples/ppocrv5 out/ 2>/dev/null || true
+          cp ncnn-20261020/benchmark/*.param out/ 2>/dev/null || true
+          cp ncnn-20261020/README.md out/ncnn-README.md
+          ls -lh out/
+
+      - name: Upload ncnn build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ncnn-aarch64
+          path: out/*
+          if-no-files-found: error
+          retention-days: 30
