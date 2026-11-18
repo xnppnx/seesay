@@ -18,11 +18,14 @@ jobs:
             sherpa-onnx==2.0.1 sherpa-onnx-core==2.0.1
           ls -lh wheels/
 
-      - name: Download lightweight English TTS model (int8, LJSpeech)
+      - name: Download lightweight English TTS models
         run: |
           mkdir -p models
           curl -sL --retry 3 -o models/vits-tts.tar.bz2 \
             https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-ljspeech-medium-int8.tar.bz2
+          # icefall model uses BPE tokens, no espeak lexicon needed (avoids GPL)
+          curl -sL --retry 3 -o models/vits-icefall-low.tar.bz2 \
+            https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-icefall-en_US-ljspeech-low.tar.bz2
           ls -lh models/
 
       - name: Upload wheels
