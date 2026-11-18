@@ -42,7 +42,13 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE=ncnn-20261020/toolchains/aarch64-linux-gnu.toolchain.cmake \
             -DCMAKE_BUILD_TYPE=Release \
             -DNCNN_VULKAN=OFF -DNCNN_BUILD_EXAMPLES=OFF \
-            -DNCNN_BUILD_BENCHMARK=OFF -DNCNN_BUILD_TESTS=OFF -DNCNN_BUILD_TOOLS=OFF
+            -DNCNN_BUILD_BENCHMARK=OFF -DNCNN_BUILD_TESTS=OFF -DNCNN_BUILD_TOOLS=OFF \
+            -DNCNN_ARM82=OFF -DNCNN_ARM82DOT=OFF -DNCNN_ARM82FP16FML=OFF \
+            -DNCNN_ARM84BF16=OFF -DNCNN_ARM84I8MM=OFF \
+            -DNCNN_ARM86SVE=OFF -DNCNN_ARM86SVE2=OFF
+          # Device CPU is Cortex-A53 (ARMv8-A: fp asimd crc32 only). The ARM82+
+          # kernels above emit asimdhp/dotprod/sve instructions A53 cannot run
+          # (SIGILL on first inference), so keep the whole extension chain off.
           cmake --build ncnn-build --target ncnn -j4
 
       - name: Build seesay_ocr (C++ OCR subprocess)
