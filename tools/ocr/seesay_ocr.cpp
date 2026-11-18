@@ -429,9 +429,15 @@ static std::string json_escape(const std::string& s) {
 // Build one text line from a recognized object (same logic as the official
 // example's draw_objects, minus the on-screen drawing).
 static std::string object_text(const Object& obj) {
+    // Match Python RapidOCR's MIN_CONFIDENCE filter: drop low-confidence
+    // characters so we never speak a misread (safety-critical for blind users).
+    const char* conf_env = getenv("SEESAY_OCR_MIN_CONFIDENCE");
+    const float min_conf = conf_env ? (float)atof(conf_env) : 0.5f;
+
     std::string text;
     for (size_t j = 0; j < obj.text.size(); ++j) {
         const Character& ch = obj.text[j];
+        if (ch.prob < min_conf) continue;  // low-confidence char: skip
         if (ch.id >= character_dict_size) {
             if (!text.empty() && text.back() != ' ') text += " ";
             continue;
