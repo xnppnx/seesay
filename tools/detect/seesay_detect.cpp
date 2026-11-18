@@ -207,15 +207,21 @@ static int detect_nanodet(const cv::Mat& bgr, std::vector<Object>& objects) {
     // ex.extract("792", ...) — passing the int 792 would index a different blob.
     const char* cls_names[3] = {"792", "814", "836"};
     const char* dis_names[3] = {"795", "817", "839"};
+    int layers_ok = 0;
     for (int s = 0; s < 3; s++) {
         ncnn::Mat cls_pred, dis_pred;
         ex.extract(cls_names[s], cls_pred);
         ex.extract(dis_names[s], dis_pred);
         if (cls_pred.empty() || dis_pred.empty()) continue;
+        layers_ok++;
         std::vector<Object> objs;
         generate_proposals(cls_pred, dis_pred, strides[s], in_pad, prob_threshold, objs);
         proposals.insert(proposals.end(), objs.begin(), objs.end());
     }
+    // If no output layer could be extracted, the model/param is incompatible.
+    // Report failure so the pipeline falls back to Mirage instead of silently
+    // claiming "success with no objects" (which would speak "I am not sure").
+    if (layers_ok == 0) return -2;
 
     if (!proposals.empty()) qsort_descent_inplace(proposals, 0, (int)proposals.size() - 1);
     std::vector<int> picked;
@@ -254,7 +260,7 @@ int main(int argc, char** argv) {
 
     std::vector<Object> objects;
     if (detect_nanodet(m, objects) != 0) {
-        printf("{\"ok\":false,\"error\":\"nanodet model load failed\"}\n");
+        printf("{\"ok\":false,\"error\":\"nanodet model load or inference failed\"}\n");
         return 1;
     }
 

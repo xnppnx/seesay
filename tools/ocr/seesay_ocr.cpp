@@ -180,45 +180,42 @@ static cv::Mat get_rotate_crop_image(const cv::Mat& bgr, const Object& object)
 class PPOCRv5
 {
 public:
-    void init();
+    bool init();  // returns false if any model file fails to load
 
     void detect(const cv::Mat& bgr, std::vector<Object>& objects);
 
     void recognize(const cv::Mat& bgr, Object& object);
+
+    void release_detector();  // free det weights after detection to bound RAM
 
 protected:
     ncnn::Net ppocrv5_det;
     ncnn::Net ppocrv5_rec;
 };
 
-void PPOCRv5::init()
+bool PPOCRv5::init()
 {
     // the ncnn model https://github.com/nihui/ncnn-assets/tree/master/models
-    // https://github.com/nihui/ncnn-android-ppocrv5/tree/master/app/src/main/assets
-
     ppocrv5_det.opt.use_vulkan_compute = false;  // SeeSay: CPU-only ncnn build
-    // ppocrv5_det.opt.use_bf16_storage = true;
-
-    // fp16 must be disabled for server model
-    // ppocrv5_det.opt.use_fp16_packed = false;
-    // ppocrv5_det.opt.use_fp16_storage = false;
-
-    ppocrv5_det.load_param(model_path("PP_OCRv5_mobile_det.ncnn.param").c_str());
-    ppocrv5_det.load_model(model_path("PP_OCRv5_mobile_det.ncnn.bin").c_str());
-    // ppocrv5_det.load_param("PP_OCRv5_server_det.ncnn.param");
-    // ppocrv5_det.load_model("PP_OCRv5_server_det.ncnn.bin");
+    if (ppocrv5_det.load_param(model_path("PP_OCRv5_mobile_det.ncnn.param").c_str()) != 0)
+        return false;
+    if (ppocrv5_det.load_model(model_path("PP_OCRv5_mobile_det.ncnn.bin").c_str()) != 0)
+        return false;
 
     ppocrv5_rec.opt.use_vulkan_compute = false;  // SeeSay: CPU-only ncnn build
-    // ppocrv5_rec.opt.use_bf16_storage = true;
+    if (ppocrv5_rec.load_param(model_path("PP_OCRv5_mobile_rec.ncnn.param").c_str()) != 0)
+        return false;
+    if (ppocrv5_rec.load_model(model_path("PP_OCRv5_mobile_rec.ncnn.bin").c_str()) != 0)
+        return false;
 
-    // fp16 must be disabled for server model
-    // ppocrv5_rec.opt.use_fp16_packed = false;
-    // ppocrv5_rec.opt.use_fp16_storage = false;
+    return true;
+}
 
-    ppocrv5_rec.load_param(model_path("PP_OCRv5_mobile_rec.ncnn.param").c_str());
-    ppocrv5_rec.load_model(model_path("PP_OCRv5_mobile_rec.ncnn.bin").c_str());
-    // ppocrv5_rec.load_param("PP_OCRv5_server_rec.ncnn.param");
-    // ppocrv5_rec.load_model("PP_OCRv5_server_rec.ncnn.bin");
+void PPOCRv5::release_detector()
+{
+    // Detection weights are no longer needed once boxes are found. Dropping
+    // them before recognition bounds peak RAM on the 352MB device.
+    ppocrv5_det.clear();
 }
 
 void PPOCRv5::detect(const cv::Mat& bgr, std::vector<Object>& objects)
@@ -422,9 +419,27 @@ static int detect_ppocrv5(const cv::Mat& bgr, std::vector<Object>& objects)
 {
     PPOCRv5 ppocrv5;
 
-    ppocrv5.init();
+    // Fail loudly if any model is missing, so the pipeline can fall back to
+    // Python OCR instead of silently reporting "no text".
+    if (!ppocrv5.init()) return -1;
 
     ppocrv5.detect(bgr, objects);
+
+    // Bound work and RAM: recognize at most 10 text boxes (top-to-bottom),
+    // skipping tiny noise boxes. This prevents dense pages from stalling/OOM.
+    const float min_area = 16.f;
+    std::vector<Object> candidates;
+    for (const Object& o : objects) {
+        if (o.rrect.size.area() < min_area) continue;
+        candidates.push_back(o);
+    }
+    std::stable_sort(candidates.begin(), candidates.end(),
+        [](const Object& a, const Object& b) { return a.rrect.center.y < b.rrect.center.y; });
+    if (candidates.size() > 10) candidates.resize(10);
+    objects = candidates;
+
+    // Release detection weights before running recognition to bound peak RAM.
+    ppocrv5.release_detector();
 
     for (size_t i = 0; i < objects.size(); i++)
     {
@@ -453,21 +468,27 @@ static std::string json_escape(const std::string& s) {
 // Build one text line from a recognized object (same logic as the official
 // example's draw_objects, minus the on-screen drawing).
 static std::string object_text(const Object& obj) {
-    // Match Python RapidOCR's MIN_CONFIDENCE filter: drop low-confidence
-    // characters so we never speak a misread (safety-critical for blind users).
+    // Match Python RapidOCR: judge confidence at the WHOLE-LINE level, never
+    // drop individual characters. Dropping single chars mid-token is dangerous
+    // for blind users (e.g. "100" -> "10", "Coffee" -> "Cffee").
     const char* conf_env = getenv("SEESAY_OCR_MIN_CONFIDENCE");
     const float min_conf = conf_env ? (float)atof(conf_env) : 0.5f;
 
     std::string text;
+    double prob_sum = 0.0;
+    int prob_count = 0;
     for (size_t j = 0; j < obj.text.size(); ++j) {
         const Character& ch = obj.text[j];
-        if (ch.prob < min_conf) continue;  // low-confidence char: skip
+        prob_sum += ch.prob;
+        prob_count++;
         if (ch.id >= character_dict_size) {
             if (!text.empty() && text.back() != ' ') text += " ";
             continue;
         }
         text += character_dict[ch.id];
     }
+    const float avg_conf = prob_count > 0 ? (float)(prob_sum / prob_count) : 0.f;
+    if (avg_conf < min_conf) return "";  // discard the whole line, never part of it
     return text;
 }
 
@@ -523,6 +544,10 @@ int main(int argc, char** argv) {
     }
 
     std::vector<Object> objects;
-    detect_ppocrv5(m, objects);
+    if (detect_ppocrv5(m, objects) != 0) {
+        // Signal failure so the pipeline falls back to Python RapidOCR.
+        printf("{\"ok\":false,\"error\":\"ncnn model load or detect failed\"}\n");
+        return 1;
+    }
     return print_result_json(m, objects);
 }

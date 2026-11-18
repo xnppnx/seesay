@@ -86,7 +86,58 @@ PREREC_MAP = {
     "Camera failed. Please try again.": "camera_failed.wav",
     "Goodbye.": "goodbye.wav",
 }
+
+# COCO-80 object labels (NanoDet) -> Chinese, so a Chinese announcement never
+# asks espeak -v cmn to read an English word. Unknown labels stay as-is.
+COCO_CN = {
+    "person": "人", "bicycle": "自行车", "car": "汽车", "motorcycle": "摩托车",
+    "airplane": "飞机", "bus": "公交车", "train": "火车", "truck": "卡车",
+    "boat": "船", "traffic light": "红绿灯", "fire hydrant": "消防栓",
+    "stop sign": "停车标志", "parking meter": "停车计时器", "bench": "长椅",
+    "bird": "鸟", "cat": "猫", "dog": "狗", "horse": "马", "sheep": "羊",
+    "cow": "牛", "elephant": "大象", "bear": "熊", "zebra": "斑马",
+    "giraffe": "长颈鹿", "backpack": "背包", "umbrella": "雨伞",
+    "handbag": "手提包", "tie": "领带", "suitcase": "行李箱", "frisbee": "飞盘",
+    "skis": "滑雪板", "snowboard": "单板滑雪板", "sports ball": "运动球",
+    "kite": "风筝", "baseball bat": "棒球棒", "baseball glove": "棒球手套",
+    "skateboard": "滑板", "surfboard": "冲浪板", "tennis racket": "网球拍",
+    "bottle": "瓶子", "wine glass": "酒杯", "cup": "杯子", "fork": "叉子",
+    "knife": "刀", "spoon": "勺子", "bowl": "碗", "banana": "香蕉",
+    "apple": "苹果", "sandwich": "三明治", "orange": "橙子", "broccoli": "西兰花",
+    "carrot": "胡萝卜", "hot dog": "热狗", "pizza": "披萨", "donut": "甜甜圈",
+    "cake": "蛋糕", "chair": "椅子", "couch": "沙发", "potted plant": "盆栽",
+    "bed": "床", "dining table": "餐桌", "toilet": "马桶", "tv": "电视",
+    "laptop": "笔记本电脑", "mouse": "鼠标", "remote": "遥控器",
+    "keyboard": "键盘", "cell phone": "手机", "microwave": "微波炉",
+    "oven": "烤箱", "toaster": "烤面包机", "sink": "水槽",
+    "refrigerator": "冰箱", "book": "书", "clock": "钟", "vase": "花瓶",
+    "scissors": "剪刀", "teddy bear": "泰迪熊", "hair drier": "吹风机",
+    "toothbrush": "牙刷",
+}
 PY = sys.executable or "python3"
+
+# Stage-3 fix: track the async aplay handle for the current fixed prompt.
+# We must not let two aplay processes fight over the embedded sound card, and
+# we must reap the child to avoid zombie processes on a device that runs for days.
+_active_prompt_proc = None
+
+
+def _stop_active_prompt() -> None:
+    """Stop and reap any still-playing async prompt before the next sound."""
+    global _active_prompt_proc
+    proc = _active_prompt_proc
+    _active_prompt_proc = None
+    if proc is None:
+        return
+    try:
+        if proc.poll() is None:          # still playing -> stop it
+            proc.terminate()
+        proc.wait(timeout=2)             # reap to avoid zombie
+    except Exception:  # noqa: BLE001 - best effort; never block speech
+        try:
+            proc.kill()
+        except Exception:
+            pass
 
 
 def set_status(value: str) -> None:
@@ -100,6 +151,9 @@ def speak(text: str, voice: str = "en") -> None:
     """Play one line. Fixed prompts use pre-recorded WAV (async, 0 delay);
     dynamic sentences use espeak-ng (blocking, so the announcement finishes).
     """
+    # Never allow two sounds at once: stop the previous prompt first.
+    _stop_active_prompt()
+
     try:
         Path(SPEECH_PATH).write_text(text, encoding="utf-8")
     except OSError:
@@ -112,8 +166,10 @@ def speak(text: str, voice: str = "en") -> None:
         wav_path = Path(AUDIO_DIR) / wav_name
         if wav_path.exists():
             try:
-                subprocess.Popen(["aplay", "-q", str(wav_path)],
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                global _active_prompt_proc
+                _active_prompt_proc = subprocess.Popen(
+                    ["aplay", "-q", str(wav_path)],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 return  # fire-and-forget: no espeak, no blocking
             except Exception as exc:  # noqa: BLE001 - fall through to espeak
                 print(f"[pipeline] prerec play failed, using espeak: {exc}", file=sys.stderr)
@@ -334,8 +390,11 @@ def build_sentence(objects: list[dict], text_lines: list[str]) -> tuple[str, str
     parts: list[str] = []
     if labels:
         if chinese_text:
+            # Speak object names in Chinese too; espeak -v cmn reads English
+            # words badly and would mislead the user.
+            cn_labels = [COCO_CN.get(w, w) for w in labels]
             lead = "我看到：" if all_confident else "我想我看到："
-            parts.append(lead + "、".join(labels))
+            parts.append(lead + "、".join(cn_labels))
         else:
             lead = "I can see " if all_confident else "I think I see "
             parts.append(lead + join_objects(labels) + ".")
@@ -346,9 +405,10 @@ def build_sentence(objects: list[dict], text_lines: list[str]) -> tuple[str, str
             parts.append("Text reads: " + text_blob + ".")
 
     speech = " ".join(parts)
+    shown_labels = [COCO_CN.get(w, w) for w in labels] if chinese_text else labels
     display = (("我看到：" if chinese_text else
                 ("I can see " if all_confident else "I think I see ")) +
-               ", ".join(labels) + "\n" if labels else "")
+               ", ".join(shown_labels) + "\n" if labels else "")
     if text_blob:
         display += ("文字：" if chinese_text else "Text: ") + text_blob
     return speech, display.strip(), False
