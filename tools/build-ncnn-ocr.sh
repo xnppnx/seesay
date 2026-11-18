@@ -24,16 +24,16 @@ echo "== [1/3] Check ncnn cross-built library =="
 test -f "$NCNN_BUILD/src/libncnn.a" || { echo "libncnn.a missing; build ncnn first"; exit 1; }
 
 echo "== [2/3] Fetch opencv-mobile (aarch64) =="
-if [ ! -d "$ROOT/third_party/opencv-mobile" ]; then
-  mkdir -p "$ROOT/third_party"
-  curl -sL --retry 3 -o "$ROOT/third_party/$OCV_ZIP" "$OCV_URL"
-  unzip -q "$ROOT/third_party/$OCV_ZIP" -d "$ROOT/third_party/opencv-mobile-tmp"
-  # The archive extracts to a version-named dir; rename it to a stable name.
-  OCV_DIR=$(find "$ROOT/third_party/opencv-mobile-tmp" -maxdepth 1 -type d -name 'opencv-mobile-*' | head -1)
-  mv "$OCV_DIR" "$ROOT/third_party/opencv-mobile"
-  rm -rf "$ROOT/third_party/opencv-mobile-tmp"
-fi
 OCV="$ROOT/third_party/opencv-mobile"
+# Always (re)fetch to a KNOWN dir; archive extracts to this exact folder name.
+EXPECTED_DIR="opencv-mobile-5.1.0-debian-trixie-aarch64"
+rm -rf "$ROOT/third_party/$EXPECTED_DIR" "$ROOT/third_party/opencv-mobile"
+mkdir -p "$ROOT/third_party"
+curl -fL --retry 3 -o "$ROOT/third_party/$OCV_ZIP" "$OCV_URL"   # -f: fail on HTTP error
+unzip -q "$ROOT/third_party/$OCV_ZIP" -d "$ROOT/third_party"
+test -d "$ROOT/third_party/$EXPECTED_DIR" || { echo "opencv extract failed"; ls -la "$ROOT/third_party"; exit 1; }
+mv "$ROOT/third_party/$EXPECTED_DIR" "$OCV"
+echo "  opencv headers: $(ls "$OCV/include/opencv5/opencv2/core/core.hpp")"
 
 echo "== [3/3] Cross-compile seesay_ocr =="
 # Pick compiler: prefer system cross-g++, fall back to zig (no apt needed).
