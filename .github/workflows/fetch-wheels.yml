@@ -1,0 +1,27 @@
+name: Fetch sherpa wheels (aarch64)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+
+jobs:
+  fetch-wheels:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download aarch64 TTS wheels
+        run: |
+          mkdir -p wheels
+          pip download --no-deps --only-binary=:all: -d wheels \
+            --platform manylinux2014_aarch64 --python-version 3.13 \
+            --implementation cp --abi cp313 \
+            sherpa-onnx==2.0.1 sherpa-onnx-core==2.0.1
+          ls -lh wheels/
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: sherpa-wheels-aarch64
+          path: wheels/*
+          if-no-files-found: error
+          retention-days: 30
