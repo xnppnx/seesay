@@ -39,6 +39,12 @@ mv "$ROOT/third_party/$ARCHIVE_DIR/aarch64-linux-gnu" "$OCV"
 echo "  opencv headers: $(ls "$OCV/include/opencv4/opencv2/core/core.hpp")"
 
 echo "== [3/3] Cross-compile seesay_ocr =="
+# kleidicv (imgproc SIMD backend) lives in lib/opencv4/3rdparty, NOT lib/ root.
+# Fail early with a clear listing if the archive layout ever changes again.
+KLEIDICV_DIR="$OCV/lib/opencv4/3rdparty"
+test -f "$KLEIDICV_DIR/libkleidicv.a" || {
+  echo "kleidicv not found at $KLEIDICV_DIR"; echo "lib tree:"; ls -R "$OCV/lib" | head -60; exit 1;
+}
 # Pick compiler: prefer system cross-g++, fall back to zig (no apt needed).
 if command -v aarch64-linux-gnu-g++ >/dev/null 2>&1; then
   CXX=aarch64-linux-gnu-g++
@@ -64,9 +70,9 @@ $CXX $CXXFLAGS -O2 -std=c++17 -fopenmp \
   -Wl,--start-group \
   "$OCV/lib/libopencv_core.a" \
   "$OCV/lib/libopencv_imgproc.a" \
-  "$OCV/lib/libkleidicv.a" \
-  "$OCV/lib/libkleidicv_hal.a" \
-  "$OCV/lib/libkleidicv_thread.a" \
+  "$KLEIDICV_DIR/libkleidicv.a" \
+  "$KLEIDICV_DIR/libkleidicv_hal.a" \
+  "$KLEIDICV_DIR/libkleidicv_thread.a" \
   -Wl,--end-group \
   -lpthread -ldl
 # NOTE: stb_image is self-contained (JPEG/PNG decoders compiled in), so no
