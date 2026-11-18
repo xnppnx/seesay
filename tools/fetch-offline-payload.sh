@@ -19,7 +19,8 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 PAYLOAD="$ROOT/payload"
-mkdir -p "$PAYLOAD/wheels" "$PAYLOAD/models/mirage" "$PAYLOAD/models/rapidocr" "$PAYLOAD/espeak"
+mkdir -p "$PAYLOAD/wheels" "$PAYLOAD/models/mirage" "$PAYLOAD/models/rapidocr" \
+         "$PAYLOAD/models/ppocrv5" "$PAYLOAD/espeak" "$PAYLOAD/bin"
 
 # NOTE: file downloads use <host>/<owner>/<repo>/resolve/<rev>/<file>.
 # The "/models/" segment belongs to the API endpoint (.../api/models/...), NOT
@@ -45,10 +46,20 @@ for f in mirage.cact config.json; do
     "$HF_ENDPOINT/Cactus-Compute/mirage/resolve/$MIRAGE_REV/$f"
 done
 
-echo "== [3/4] RapidOCR models =="
+echo "== [3/4] RapidOCR models (legacy fallback) =="
 # RapidOCR ships its models inside the wheel on install; copy the onnx bundle
 # from the installed package if present, else note it is provided by the wheel.
 echo "RapidOCR models are bundled in the rapidocr-onnxruntime wheel."
+
+echo "== [3b/4] PP-OCRv5 ncnn models (stage-1 C++ OCR) =="
+NCNN_ASSETS="https://raw.githubusercontent.com/nihui/ncnn-assets/master/models"
+for f in PP_OCRv5_mobile_det.ncnn.param PP_OCRv5_mobile_det.ncnn.bin \
+         PP_OCRv5_mobile_rec.ncnn.param PP_OCRv5_mobile_rec.ncnn.bin; do
+  curl -fL --retry 3 -o "$PAYLOAD/models/ppocrv5/$f" "$NCNN_ASSETS/$f"
+done
+# seesay_ocr binary is cross-built by tools/build-ncnn-ocr.sh in the ncnn job
+# and placed into $PAYLOAD/bin before packaging.
+echo "PP-OCRv5 models ready (seesay_ocr binary comes from the ncnn build job)."
 
 echo "== [4/4] espeak-ng debs (Aliyun Debian arm64) =="
 ALIYUN="https://mirrors.aliyun.com/debian/pool/main/e/espeak-ng"
@@ -86,7 +97,19 @@ echo "Installing offline Python wheels..."
 echo "Installing espeak-ng (GPL, kept as separate binaries)..."
 dpkg -i "$HERE"/espeak/*.deb || apt-get -f install -y
 
-echo "Model weights are read in-place from $HERE/models (no per-user cache)."
+echo "Installing stage-1 ncnn OCR engine (C++ subprocess + models)..."
+if [ -f "$HERE/bin/seesay_ocr" ]; then
+  install -d -m 0755 /usr/share/seesay/bin /usr/share/seesay/models
+  install -m 0755 "$HERE/bin/seesay_ocr" /usr/share/seesay/bin/seesay_ocr
+  if [ -d "$HERE/models/ppocrv5" ]; then
+    cp -f "$HERE/models/ppocrv5"/* /usr/share/seesay/models/
+  fi
+  echo "  seesay_ocr installed; OCR now uses ncnn (11-12s -> ~1-2s)."
+else
+  echo "  WARN: seesay_ocr binary not in payload; pipeline will use Python fallback."
+fi
+
+echo "Legacy model weights are read in-place from $HERE/models (no per-user cache)."
 echo "Payload install complete."
 INSTALL
 chmod +x "$PAYLOAD/install.sh"

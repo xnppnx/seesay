@@ -23,6 +23,19 @@ if [ "$1" = "configure" ] && [ -d "$WHEELS" ]; then
             numpy shapely pyclipper Pillow || \
             echo "SeeSay: wheel install had issues; run payload/install.sh manually" >&2
     fi
+
+    # Stage-1: install the C++ ncnn OCR engine and its models so the fast
+    # OCR path is active right after install. If the binary is absent (e.g.
+    # an older package), the pipeline silently falls back to Python OCR.
+    if [ -f "$PAYLOAD/bin/seesay_ocr" ]; then
+        echo "SeeSay: installing ncnn OCR engine..."
+        mkdir -p /usr/share/seesay/bin /usr/share/seesay/models
+        cp -f "$PAYLOAD/bin/seesay_ocr" /usr/share/seesay/bin/seesay_ocr
+        chmod 0755 /usr/share/seesay/bin/seesay_ocr
+        if [ -d "$PAYLOAD/models/ppocrv5" ]; then
+            cp -f "$PAYLOAD/models/ppocrv5"/* /usr/share/seesay/models/
+        fi
+    fi
 fi
 
 exit 0

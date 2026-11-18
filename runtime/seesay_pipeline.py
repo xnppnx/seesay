@@ -26,6 +26,11 @@ from pathlib import Path
 
 RUNTIME_DIR = Path(__file__).resolve().parent
 
+# Stage-1: prefer the C++ ncnn OCR subprocess (10x faster) when present.
+# Set SEESAY_OCR_CPP=0 to force the legacy Python RapidOCR fallback.
+OCR_CPP_BIN = os.environ.get("SEESAY_OCR_CPP_BIN", "/usr/share/seesay/bin/seesay_ocr")
+OCR_USE_CPP = os.environ.get("SEESAY_OCR_CPP", "1") != "0"
+
 # All runtime files live under the app's own data directory, per the
 # CardputerZero guideline ("configuration files: $HOME/.config/YourApp/").
 # XDG_DATA_HOME/seesay, falling back to $HOME/.local/share/seesay.
@@ -113,6 +118,35 @@ def run_script(name: str, *args: str) -> dict:
             except json.JSONDecodeError:
                 continue
     return {"ok": False, "error": proc.stderr.strip()[:200] or "no JSON from engine"}
+
+
+def run_ocr(image: str) -> dict:
+    """Recognize text, preferring the C++ ncnn subprocess over Python RapidOCR.
+
+    Both engines print one JSON line with the same shape, so callers do not
+    change. If the C++ binary is missing/fails, fall back to the Python script
+    so a bad deploy can never leave the device without OCR.
+    """
+    if OCR_USE_CPP and Path(OCR_CPP_BIN).exists():
+        try:
+            proc = subprocess.run([OCR_CPP_BIN, image], timeout=45,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                  text=True)
+            out = proc.stdout.strip()
+            for line in reversed(out.splitlines()):
+                line = line.strip()
+                if line.startswith("{"):
+                    try:
+                        result = json.loads(line)
+                        if result.get("ok"):
+                            return result
+                    except json.JSONDecodeError:
+                        continue
+            print(f"[pipeline] C++ OCR failed, falling back: "
+                  f"{(proc.stderr or out).strip()[:160]}", file=sys.stderr)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[pipeline] C++ OCR error, falling back: {exc}", file=sys.stderr)
+    return run_script("seesay_readtext.py", image)
 
 
 def capture() -> tuple[bool, str]:
@@ -269,7 +303,7 @@ def main() -> int:
     if not isinstance(objects, list):
         objects = []
 
-    read = run_script("seesay_readtext.py", analysis_image)
+    read = run_ocr(analysis_image)
     lines = read.get("lines", []) if read.get("ok") else []
     if not isinstance(lines, list):
         lines = []

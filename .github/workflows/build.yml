@@ -15,7 +15,7 @@ jobs:
       - name: Install build toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y crossbuild-essential-arm64 ninja-build curl
+          sudo apt-get install -y crossbuild-essential-arm64 ninja-build curl unzip cmake
           python3 -m pip install --break-system-packages "cmake>=3.31"
 
       - name: Show versions
@@ -26,6 +26,21 @@ jobs:
 
       - name: Fetch offline runtime payload (models, wheels, espeak-ng)
         run: bash tools/fetch-offline-payload.sh
+
+      # ---- Stage-1: build the C++ ncnn OCR subprocess into payload/bin ----
+      - name: Fetch and cross-build ncnn (CPU only)
+        run: |
+          curl -sL https://github.com/Tencent/ncnn/archive/refs/tags/20261020.tar.gz -o ncnn.tar.gz
+          tar xzf ncnn.tar.gz
+          cmake -S ncnn-20261020 -B ncnn-build \
+            -DCMAKE_TOOLCHAIN_FILE=ncnn-20261020/toolchains/aarch64-linux-gnu.toolchain.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DNCNN_VULKAN=OFF -DNCNN_BUILD_EXAMPLES=OFF \
+            -DNCNN_BUILD_BENCHMARK=OFF -DNCNN_BUILD_TESTS=OFF -DNCNN_BUILD_TOOLS=OFF
+          cmake --build ncnn-build --target ncnn -j4
+
+      - name: Build seesay_ocr (C++ OCR subprocess)
+        run: bash tools/build-ncnn-ocr.sh
 
       - name: Configure, build and package
         run: cmake --workflow --preset cp0-cross-package
@@ -38,55 +53,5 @@ jobs:
         with:
           name: cardputerzero-app
           path: dist/*.deb
-          if-no-files-found: error
-          retention-days: 30
-
-  # Stage-0 benchmark: cross-build ncnn + ppocrv5 example for the device.
-  # Only runs when manually dispatched (avoid slowing every normal build).
-  build-ncnn:
-    if: contains(github.event.head_commit.message, 'ncnn') || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Install cross toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y crossbuild-essential-arm64 cmake ninja-build git
-
-      - name: Fetch ncnn source
-        run: |
-          curl -sL https://github.com/Tencent/ncnn/archive/refs/tags/20261020.tar.gz -o ncnn.tar.gz
-          tar xzf ncnn.tar.gz
-
-      - name: Configure ncnn (cross, CPU only)
-        run: |
-          cmake -S ncnn-20261020 -B ncnn-build \
-            -DCMAKE_TOOLCHAIN_FILE=ncnn-20261020/toolchains/aarch64-linux-gnu.toolchain.cmake \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DNCNN_VULKAN=OFF -DNCNN_BUILD_EXAMPLES=ON \
-            -DNCNN_BUILD_BENCHMARK=ON -DNCNN_BUILD_TESTS=OFF -DNCNN_BUILD_TOOLS=OFF
-
-      - name: Build ncnn
-        run: cmake --build ncnn-build -j4
-
-      - name: Collect ncnn artifacts + sherpa wheels
-        run: |
-          mkdir -p ncnn-out
-          cp ncnn-build/src/libncnn.a ncnn-out/ 2>/dev/null || true
-          cp ncnn-build/benchmark/benchncnn ncnn-out/ 2>/dev/null || true
-          cp ncnn-build/examples/ppocrv5 ncnn-out/ 2>/dev/null || true
-          cp ncnn-20261020/benchmark/*.param ncnn-out/ 2>/dev/null || true
-          # Stage-0 TTS benchmark: sherpa-onnx 2.x aarch64 wheels (境外网络秒下)
-          # Force arm64/py3.13 platform since this runner is x86.
-          pip download --no-deps --only-binary=:all: -d ncnn-out \
-            --platform manylinux2014_aarch64 --python-version 3.13 \
-            --implementation cp --abi cp313 \
-            sherpa-onnx==2.0.1 sherpa-onnx-core==2.0.1 2>&1 | tail -8 || true
-          ls -lh ncnn-out/
-
-      - name: Upload ncnn build
-        uses: actions/upload-artifact@v4
-        with:
-          name: ncnn-aarch64
-          path: ncnn-out/*
           if-no-files-found: error
           retention-days: 30
