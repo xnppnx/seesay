@@ -202,12 +202,16 @@ static int detect_nanodet(const cv::Mat& bgr, std::vector<Object>& objects) {
 
     std::vector<Object> proposals;
     const int strides[3] = {8, 16, 32};
-    const int cls_ids[3] = {792, 814, 836};
-    const int dis_ids[3] = {795, 817, 839};
+    // IMPORTANT: these are ncnn blob NAMES (unnamed layers use their layer id
+    // as a string), NOT integer blob indices. The official example uses
+    // ex.extract("792", ...) — passing the int 792 would index a different blob.
+    const char* cls_names[3] = {"792", "814", "836"};
+    const char* dis_names[3] = {"795", "817", "839"};
     for (int s = 0; s < 3; s++) {
         ncnn::Mat cls_pred, dis_pred;
-        ex.extract(cls_ids[s], cls_pred);
-        ex.extract(dis_ids[s], dis_pred);
+        ex.extract(cls_names[s], cls_pred);
+        ex.extract(dis_names[s], dis_pred);
+        if (cls_pred.empty() || dis_pred.empty()) continue;
         std::vector<Object> objs;
         generate_proposals(cls_pred, dis_pred, strides[s], in_pad, prob_threshold, objs);
         proposals.insert(proposals.end(), objs.begin(), objs.end());
