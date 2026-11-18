@@ -36,8 +36,21 @@ fi
 OCV="$ROOT/third_party/opencv-mobile"
 
 echo "== [3/3] Cross-compile seesay_ocr =="
+# Pick compiler: prefer system cross-g++, fall back to zig (no apt needed).
+if command -v aarch64-linux-gnu-g++ >/dev/null 2>&1; then
+  CXX=aarch64-linux-gnu-g++
+  CXXFLAGS=""
+  echo "  using aarch64-linux-gnu-g++"
+elif command -v zig >/dev/null 2>&1; then
+  CXX="zig c++"
+  CXXFLAGS="--target=aarch64-linux-gnu"
+  echo "  using zig cross compiler"
+else
+  echo "no aarch64 cross compiler (need apt crossbuild-essential-arm64 or pip ziglang)"; exit 1
+fi
+
 # opencv-mobile 5.1.0 headers live under include/opencv5/ (opencv4 was include/)
-aarch64-linux-gnu-g++ -O2 -std=c++17 \
+$CXX $CXXFLAGS -O2 -std=c++17 \
   -I"$NCNN_DIR/src" \
   -I"$NCNN_BUILD/src" \
   -I"$OCV/include/opencv5" \

@@ -14,21 +14,23 @@ jobs:
 
       - name: Install build toolchain
         run: |
-          # apt-get update on shared runners can stall for many minutes; bound it.
-          timeout 180 sudo apt-get update || echo "apt update timed out, using cached lists"
-          timeout 300 sudo apt-get install -y crossbuild-essential-arm64 ninja-build curl unzip cmake
+          # apt on shared runners is occasionally slow; retry the whole step.
+          for i in 1 2 3; do
+            sudo apt-get update && \
+            sudo apt-get install -y crossbuild-essential-arm64 ninja-build curl unzip cmake && \
+            break || echo "apt attempt $i failed, retrying..."
+          done
           python3 -m pip install --break-system-packages "cmake>=3.31"
 
       - name: Show versions
         run: |
-          cmake --version
-          aarch64-linux-gnu-g++ --version
-          ninja --version
+          cmake --version | head -1
+          aarch64-linux-gnu-g++ --version | head -1
 
       - name: Fetch offline runtime payload (models, wheels, espeak-ng)
         run: bash tools/fetch-offline-payload.sh
 
-      # ---- Stage-1: build the C++ ncnn OCR subprocess into payload/bin ----
+      # ---- Stage-1: cross-build ncnn + C++ OCR subprocess ----
       - name: Fetch and cross-build ncnn (CPU only)
         run: |
           curl -sL https://github.com/Tencent/ncnn/archive/refs/tags/20261020.tar.gz -o ncnn.tar.gz
