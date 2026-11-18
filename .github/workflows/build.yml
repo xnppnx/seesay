@@ -21,7 +21,9 @@ jobs:
             sudo apt-get install -y crossbuild-essential-arm64 ninja-build curl unzip cmake && \
             break || echo "apt attempt $i failed, retrying..."
           done
-          python3 -m pip install --break-system-packages "cmake>=3.31"
+          # --break-system-packages only exists on pip 23+ (24.04); 22.04 has pip 22.
+          python3 -m pip install "cmake>=3.31" 2>/dev/null || \
+            python3 -m pip install --break-system-packages "cmake>=3.31"
 
       - name: Show versions
         run: |
