@@ -20,7 +20,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 PAYLOAD="$ROOT/payload"
 mkdir -p "$PAYLOAD/wheels" "$PAYLOAD/models/mirage" "$PAYLOAD/models/rapidocr" \
-         "$PAYLOAD/models/ppocrv5" "$PAYLOAD/espeak" "$PAYLOAD/bin"
+         "$PAYLOAD/models/ppocrv5" "$PAYLOAD/models/nanodet" \
+         "$PAYLOAD/espeak" "$PAYLOAD/bin"
 
 # NOTE: file downloads use <host>/<owner>/<repo>/resolve/<rev>/<file>.
 # The "/models/" segment belongs to the API endpoint (.../api/models/...), NOT
@@ -60,6 +61,13 @@ done
 # seesay_ocr binary is cross-built by tools/build-ncnn-ocr.sh in the ncnn job
 # and placed into $PAYLOAD/bin before packaging.
 echo "PP-OCRv5 models ready (seesay_ocr binary comes from the ncnn build job)."
+
+echo "== [3c/4] NanoDet ncnn models (stage-2 C++ object detection) =="
+for f in nanodet_m.param nanodet_m.bin; do
+  curl -fL --retry 3 -o "$PAYLOAD/models/nanodet/$f" "$NCNN_ASSETS/$f"
+done
+# seesay_detect binary is cross-built by tools/build-ncnn-ocr.sh alongside OCR.
+echo "NanoDet models ready (seesay_detect binary comes from the ncnn build job)."
 
 echo "== [4/4] espeak-ng debs (Aliyun Debian arm64) =="
 ALIYUN="https://mirrors.aliyun.com/debian/pool/main/e/espeak-ng"
@@ -107,6 +115,18 @@ if [ -f "$HERE/bin/seesay_ocr" ]; then
   echo "  seesay_ocr installed; OCR now uses ncnn (11-12s -> ~1-2s)."
 else
   echo "  WARN: seesay_ocr binary not in payload; pipeline will use Python fallback."
+fi
+
+echo "Installing stage-2 ncnn object detection (C++ subprocess + models)..."
+if [ -f "$HERE/bin/seesay_detect" ]; then
+  install -d -m 0755 /usr/share/seesay/bin /usr/share/seesay/models
+  install -m 0755 "$HERE/bin/seesay_detect" /usr/share/seesay/bin/seesay_detect
+  if [ -d "$HERE/models/nanodet" ]; then
+    cp -f "$HERE/models/nanodet"/* /usr/share/seesay/models/
+  fi
+  echo "  seesay_detect installed; object detection now uses ncnn (7-10s -> ~0.2s)."
+else
+  echo "  WARN: seesay_detect binary not in payload; pipeline will use Mirage fallback."
 fi
 
 echo "Legacy model weights are read in-place from $HERE/models (no per-user cache)."

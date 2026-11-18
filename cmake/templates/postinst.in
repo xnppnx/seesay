@@ -36,6 +36,18 @@ if [ "$1" = "configure" ] && [ -d "$WHEELS" ]; then
             cp -f "$PAYLOAD/models/ppocrv5"/* /usr/share/seesay/models/
         fi
     fi
+
+    # Stage-2: install the C++ ncnn object-detection engine and its models.
+    # If absent, the pipeline silently falls back to Python Mirage.
+    if [ -f "$PAYLOAD/bin/seesay_detect" ]; then
+        echo "SeeSay: installing ncnn object detection engine..."
+        mkdir -p /usr/share/seesay/bin /usr/share/seesay/models
+        cp -f "$PAYLOAD/bin/seesay_detect" /usr/share/seesay/bin/seesay_detect
+        chmod 0755 /usr/share/seesay/bin/seesay_detect
+        if [ -d "$PAYLOAD/models/nanodet" ]; then
+            cp -f "$PAYLOAD/models/nanodet"/* /usr/share/seesay/models/
+        fi
+    fi
 fi
 
 exit 0

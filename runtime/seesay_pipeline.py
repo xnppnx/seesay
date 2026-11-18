@@ -31,6 +31,11 @@ RUNTIME_DIR = Path(__file__).resolve().parent
 OCR_CPP_BIN = os.environ.get("SEESAY_OCR_CPP_BIN", "/usr/share/seesay/bin/seesay_ocr")
 OCR_USE_CPP = os.environ.get("SEESAY_OCR_CPP", "1") != "0"
 
+# Stage-2: prefer the C++ ncnn NanoDet subprocess (~40x faster) when present.
+# Set SEESAY_DETECT_CPP=0 to force the legacy Python Cactus Mirage fallback.
+DETECT_CPP_BIN = os.environ.get("SEESAY_DETECT_CPP_BIN", "/usr/share/seesay/bin/seesay_detect")
+DETECT_USE_CPP = os.environ.get("SEESAY_DETECT_CPP", "1") != "0"
+
 # All runtime files live under the app's own data directory, per the
 # CardputerZero guideline ("configuration files: $HOME/.config/YourApp/").
 # XDG_DATA_HOME/seesay, falling back to $HOME/.local/share/seesay.
@@ -147,6 +152,36 @@ def run_ocr(image: str) -> dict:
         except Exception as exc:  # noqa: BLE001
             print(f"[pipeline] C++ OCR error, falling back: {exc}", file=sys.stderr)
     return run_script("seesay_readtext.py", image)
+
+
+def run_detect(image: str) -> dict:
+    """Detect objects, preferring the C++ ncnn NanoDet subprocess over Mirage.
+
+    Output shape matches seesay_describe.py ({"ok":..., "objects":[...]}), so
+    build_sentence / speech / UI need no changes. If the C++ binary is missing
+    or fails, fall back to the Python Mirage script so a bad deploy can never
+    leave the device without object detection.
+    """
+    if DETECT_USE_CPP and Path(DETECT_CPP_BIN).exists():
+        try:
+            proc = subprocess.run([DETECT_CPP_BIN, image], timeout=45,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                  text=True)
+            out = proc.stdout.strip()
+            for line in reversed(out.splitlines()):
+                line = line.strip()
+                if line.startswith("{"):
+                    try:
+                        result = json.loads(line)
+                        if result.get("ok"):
+                            return result
+                    except json.JSONDecodeError:
+                        continue
+            print(f"[pipeline] C++ detect failed, falling back: "
+                  f"{(proc.stderr or out).strip()[:160]}", file=sys.stderr)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[pipeline] C++ detect error, falling back: {exc}", file=sys.stderr)
+    return run_script("seesay_describe.py", image)
 
 
 def capture() -> tuple[bool, str]:
@@ -298,7 +333,7 @@ def main() -> int:
 
     speak("Analyzing the scene.")
 
-    described = run_script("seesay_describe.py", analysis_image)
+    described = run_detect(analysis_image)
     objects = described.get("objects", []) if described.get("ok") else []
     if not isinstance(objects, list):
         objects = []

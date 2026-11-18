@@ -82,3 +82,27 @@ $CXX $CXXFLAGS -O2 -std=c++17 -fopenmp \
 aarch64-linux-gnu-strip "$OUT/seesay_ocr"
 ls -lh "$OUT/seesay_ocr"
 echo "== seesay_ocr built at $OUT/seesay_ocr =="
+
+# ---- Stage-2: cross-compile seesay_detect (ncnn NanoDet object detection) ----
+# Same toolchain / opencv / ncnn backend as OCR; only the source and output differ.
+echo "== [4/4] Cross-compile seesay_detect (stage-2 object detection) =="
+$CXX $CXXFLAGS -O2 -std=c++17 -fopenmp \
+  -I"$NCNN_DIR/src" \
+  -I"$NCNN_BUILD/src" \
+  -I"$OCV/include/opencv4" \
+  -DNCNN_VULKAN=0 \
+  "$ROOT/tools/detect/seesay_detect.cpp" \
+  -o "$OUT/seesay_detect" \
+  "$NCNN_BUILD/src/libncnn.a" \
+  -Wl,--start-group \
+  "$OCV/lib/libopencv_core.a" \
+  "$OCV/lib/libopencv_imgproc.a" \
+  "$KLEIDICV_DIR/libkleidicv.a" \
+  "$KLEIDICV_DIR/libkleidicv_hal.a" \
+  "$KLEIDICV_DIR/libkleidicv_thread.a" \
+  -Wl,--end-group \
+  -lpthread -ldl
+
+aarch64-linux-gnu-strip "$OUT/seesay_detect"
+ls -lh "$OUT/seesay_detect"
+echo "== seesay_detect built at $OUT/seesay_detect =="
