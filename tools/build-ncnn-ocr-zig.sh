@@ -27,7 +27,7 @@ zig c++ -target aarch64-linux-gnu -O2 -std=c++17 \
   "$NCNN_BUILD/src/libncnn.a" \
   "$OCV/lib/libopencv_core.a" \
   "$OCV/lib/libopencv_imgproc.a" \
-  -lpthread -ldl -lz
+  -lpthread -ldl
 
 ls -lh "$OUT/seesay_ocr"
 echo "== seesay_ocr built with zig =="

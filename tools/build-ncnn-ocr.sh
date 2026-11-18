@@ -65,9 +65,10 @@ $CXX $CXXFLAGS -O2 -std=c++17 \
   "$OCV/lib/opencv5/3rdparty/libkleidicv_hal.a" \
   "$OCV/lib/opencv5/3rdparty/libkleidicv_thread.a" \
   -Wl,--end-group \
-  -lpthread -ldl -lz
+  -lpthread -ldl
 # NOTE: stb_image is self-contained (JPEG/PNG decoders compiled in), so no
-# -ljpeg/-lpng needed. This keeps the cross-build dependency-free.
+# -ljpeg/-lpng needed. No -lz either: the cross sysroot lacks arm64 zlib dev,
+# and opencv-mobile's static libs already bundle what they need.
 
 aarch64-linux-gnu-strip "$OUT/seesay_ocr"
 ls -lh "$OUT/seesay_ocr"
