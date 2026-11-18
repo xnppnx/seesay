@@ -13,7 +13,10 @@
 
 #define LV_USE_STDLIB_MALLOC               LV_STDLIB_BUILTIN
 
-#define LV_MEM_SIZE                        (32U * 1024U * 1024U)
+// Stage-1 engineering debt: shrink LVGL's internal memory pool 32MB -> 6MB,
+// freeing ~26MB physical RAM for the ncnn OCR/detection engines on the 352MB
+// device. The UI alone needs far less than 6MB (verified in stage-1 self-check).
+#define LV_MEM_SIZE                        (6U * 1024U * 1024U)
 
 #define LV_USE_FLOAT                       1
 

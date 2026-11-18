@@ -59,6 +59,13 @@ SMALL_PATH = os.environ.get("SEESAY_SMALL_PHOTO", str(DATA_DIR / "capture_small.
 # (JPEG decoding is off). Kept small (~120px wide) so it never crowds the text.
 THUMB_PATH = os.environ.get("SEESAY_THUMB", str(DATA_DIR / "thumb.png"))
 THUMB_MAX_WIDTH = int(os.environ.get("SEESAY_THUMB_WIDTH", "120"))
+# Stage-1: LVGL caches decoded images by source path; writing the same thumb.png
+# repeatedly shows a STALE photo. Alternate between two filenames each capture
+# and publish the active one via a tiny pointer file that the UI reads.
+THUMB_A = str(DATA_DIR / "thumb_0.png")
+THUMB_B = str(DATA_DIR / "thumb_1.png")
+THUMB_SEQ = str(DATA_DIR / "thumb_seq.txt")
+THUMB_ACTIVE = str(DATA_DIR / "thumb_active.txt")
 SMALL_MAX_WIDTH = int(os.environ.get("SEESAY_SMALL_WIDTH", "800"))
 RESULT_PATH = os.environ.get("SEESAY_RESULT", str(DATA_DIR / "result.json"))
 STATUS_PATH = os.environ.get("SEESAY_STATUS", str(DATA_DIR / "status.txt"))
@@ -258,13 +265,24 @@ def downscale() -> bool:
                 im = im.resize((SMALL_MAX_WIDTH, new_h), Image.LANCZOS)
             im.save(SMALL_PATH, "JPEG", quality=85)
 
-            # Thumbnail: crop/resize into a fixed 120x90 frame, saved as PNG.
+            # Thumbnail: resize into a fixed-width frame, saved as PNG.
             if im.width > THUMB_MAX_WIDTH:
                 th = round(im.height * THUMB_MAX_WIDTH / im.width)
                 thumb = im.resize((THUMB_MAX_WIDTH, th), Image.LANCZOS)
             else:
                 thumb = im.copy()
-            thumb.save(THUMB_PATH, "PNG", optimize=True)
+            # Stage-1: alternate filenames so LVGL's path-keyed image cache
+            # cannot serve a stale decoded thumbnail on consecutive shots.
+            try:
+                seq = int(Path(THUMB_SEQ).read_text(encoding="utf-8").strip())
+            except (OSError, ValueError):
+                seq = 0
+            seq += 1
+            active = THUMB_A if seq % 2 == 1 else THUMB_B
+            thumb.save(active, "PNG", optimize=True)
+            # Publish the active basename (no path) for the UI to load.
+            Path(THUMB_SEQ).write_text(str(seq), encoding="utf-8")
+            Path(THUMB_ACTIVE).write_text(Path(active).name, encoding="utf-8")
         return Path(SMALL_PATH).exists()
     except Exception as exc:  # noqa: BLE001
         print(f"[pipeline] downscale failed: {exc}", file=sys.stderr)

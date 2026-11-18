@@ -15,6 +15,7 @@
 #include "theme.h"
 
 #include <cstdlib>
+#include <fstream>
 #include <string>
 
 namespace screen {
@@ -60,7 +61,12 @@ void status_observer(lv_observer_t* observer, lv_subject_t* subject) {
     }
     lv_label_set_text(label, shown);
 
-    const auto p = view::palette(false);
+    // Stage-1: follow the active theme instead of hardcoding light palette.
+    bool dark = false;
+    if (auto* vm = static_cast<viewmodel::BaseViewModel*>(lv_observer_get_user_data(observer))) {
+        dark = vm->is_dark_mode();
+    }
+    const auto p = view::palette(dark);
     lv_color_t color = (role == 0) ? p.success : (role == 2) ? p.error : p.warning;
     lv_obj_set_style_text_color(label, color, 0);
 }
@@ -81,9 +87,26 @@ std::string thumb_lvgl_path() {
         dir = (home && *home) ? (std::string(home) + "/.local/share/seesay")
                               : "/tmp/seesay";
     }
+    // Stage-1: the pipeline alternates thumb_0.png / thumb_1.png to defeat
+    // LVGL's path-keyed image cache. Read the tiny pointer file to learn which
+    // one is current. Fall back to thumb.png for older packages.
+    std::string name = "thumb.png";
+    std::ifstream active(dir + "/thumb_active.txt");
+    if (active) {
+        std::string line;
+        if (std::getline(active, line) && !line.empty()) {
+            // Security: accept a BARE filename only, no path separators or "..".
+            if (line.find('/') == std::string::npos &&
+                line.find('\\') == std::string::npos &&
+                line.find("..") == std::string::npos &&
+                (line == "thumb_0.png" || line == "thumb_1.png")) {
+                name = line;
+            }
+        }
+    }
     // LVGL stdio driver uses drive letter 'A' mapped to "/", so an absolute
     // POSIX path must be prefixed with "A:".
-    return "A:" + dir + "/thumb.png";
+    return "A:" + dir + "/" + name;
 }
 
 // Show/hide the thumbnail as the job state changes. On DONE/REPORTING the
@@ -134,7 +157,8 @@ void AppleScreen::build_content(lv_obj_t* content) {
     lv_obj_set_width(status, LV_PCT(100));
     lv_label_set_long_mode(status, LV_LABEL_LONG_CLIP);
     lv_obj_set_style_text_font(status, small_font ? small_font : &lv_font_montserrat_12, 0);
-    lv_subject_add_observer_obj(view_model().status_subject(), status_observer, status, nullptr);
+    lv_subject_add_observer_obj(view_model().status_subject(), status_observer,
+                                status, &view_model());
 
     // Middle row: thumbnail (left) + result text (right), project book 5.2.
     auto* row = lv_obj_create(column);
@@ -146,17 +170,17 @@ void AppleScreen::build_content(lv_obj_t* content) {
     lv_obj_set_style_pad_column(row, 6, 0);
     lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
 
-    // Thumbnail: 120x90 area, image scaled to fit (CONTAIN) without distortion.
+    // Thumbnail: fit the 78px-tall row without cropping (was 120x90 -> clipped).
     auto* image = lv_image_create(row);
-    lv_obj_set_size(image, 120, 90);
+    lv_obj_set_size(image, 104, 78);
     lv_image_set_inner_align(image, LV_IMAGE_ALIGN_CONTAIN);
     lv_obj_add_flag(image, LV_OBJ_FLAG_HIDDEN);  // hidden until a photo exists
     lv_subject_add_observer_obj(view_model().status_subject(), thumb_observer,
                                 nullptr, image);
 
-    // Result text: scrollable, wraps long Chinese/English text, right of image.
+    // Result text: takes the remaining width, wraps long Chinese/English text.
     auto* result = lv_label_create(row);
-    lv_obj_set_width(result, 180);
+    lv_obj_set_flex_grow(result, 1);
     lv_obj_set_height(result, 78);
     lv_label_set_long_mode(result, LV_LABEL_LONG_WRAP);
     lv_label_bind_text(result, view_model().ocr_result_subject(), nullptr);
