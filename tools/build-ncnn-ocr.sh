@@ -36,18 +36,25 @@ fi
 OCV="$ROOT/third_party/opencv-mobile"
 
 echo "== [3/3] Cross-compile seesay_ocr =="
+# opencv-mobile 5.1.0 headers live under include/opencv5/ (opencv4 was include/)
 aarch64-linux-gnu-g++ -O2 -std=c++17 \
   -I"$NCNN_DIR/src" \
   -I"$NCNN_BUILD/src" \
-  -I"$OCV/include" \
+  -I"$OCV/include/opencv5" \
   -DNCNN_VULKAN=0 \
   "$ROOT/tools/ocr/seesay_ocr.cpp" \
   -o "$OUT/seesay_ocr" \
   "$NCNN_BUILD/src/libncnn.a" \
+  -Wl,--start-group \
   "$OCV/lib/libopencv_core.a" \
   "$OCV/lib/libopencv_imgproc.a" \
-  "$OCV/lib/libopencv_imgcodecs.a" \
+  "$OCV/lib/libkleidicv.a" \
+  "$OCV/lib/libkleidicv_hal.a" \
+  "$OCV/lib/libkleidicv_thread.a" \
+  -Wl,--end-group \
   -lpthread -ldl -lz
+# NOTE: stb_image is self-contained (JPEG/PNG decoders compiled in), so no
+# -ljpeg/-lpng needed. This keeps the cross-build dependency-free.
 
 aarch64-linux-gnu-strip "$OUT/seesay_ocr"
 ls -lh "$OUT/seesay_ocr"

@@ -21,8 +21,10 @@
 #include "net.h"
 
 #include <opencv2/core/core.hpp>
-#include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+// opencv-mobile 5.1 dropped imgcodecs/highgui; use ncnn's bundled stb_image
+// to load images instead of cv::imread. We only need core+imgproc for the
+// detection contours / affine warp.
 
 #include <float.h>
 #include <stdio.h>
@@ -32,11 +34,31 @@
 
 #include "ppocrv5_dict.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 // Build a model file path from SEESAY_OCR_MODELS (or the packaged default).
 static std::string model_path(const char* file) {
     const char* dir = getenv("SEESAY_OCR_MODELS");
     if (!dir || !*dir) dir = "/usr/share/seesay/models";
     return std::string(dir) + "/" + file;
+}
+
+// Load an image into a BGR cv::Mat using stb_image (opencv-mobile 5.x has no
+// imgcodecs). Returns an empty Mat on failure, like cv::imread.
+static cv::Mat imread_stb(const char* path) {
+    int w = 0, h = 0, channels = 0;
+    stbi_uc* data = stbi_load(path, &w, &h, &channels, 3);  // force 3 channels
+    if (!data) return cv::Mat();
+    cv::Mat bgr(h, w, CV_8UC3);
+    // stb gives RGB; OpenCV detection code expects BGR -> swap R and B.
+    for (int i = 0; i < w * h; ++i) {
+        bgr.data[i * 3 + 0] = data[i * 3 + 2];
+        bgr.data[i * 3 + 1] = data[i * 3 + 1];
+        bgr.data[i * 3 + 2] = data[i * 3 + 0];
+    }
+    stbi_image_free(data);
+    return bgr;
 }
 
 struct Character
@@ -492,7 +514,7 @@ int main(int argc, char** argv) {
     }
 
     const char* imagepath = argv[1];
-    cv::Mat m = cv::imread(imagepath, 1);
+    cv::Mat m = imread_stb(imagepath);
     if (m.empty()) {
         printf("{\"ok\":false,\"error\":\"image not found or decode failed\"}\n");
         return 1;
