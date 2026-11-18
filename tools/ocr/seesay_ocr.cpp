@@ -20,8 +20,10 @@
 #include "layer.h"
 #include "net.h"
 
-#include <opencv2/core/core.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
+// Use the umbrella header: opencv-mobile 5.x splits imgproc functions across
+// headers, so including only core/imgproc sub-headers misses boundingRect,
+// minAreaRect, getAffineTransform, etc.
+#include <opencv2/opencv.hpp>
 // opencv-mobile 5.1 dropped imgcodecs/highgui; use ncnn's bundled stb_image
 // to load images instead of cv::imread. We only need core+imgproc for the
 // detection contours / affine warp.
