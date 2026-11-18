@@ -14,8 +14,9 @@ jobs:
 
       - name: Install build toolchain
         run: |
-          sudo apt-get update
-          sudo apt-get install -y crossbuild-essential-arm64 ninja-build curl unzip cmake
+          # apt-get update on shared runners can stall for many minutes; bound it.
+          timeout 180 sudo apt-get update || echo "apt update timed out, using cached lists"
+          timeout 300 sudo apt-get install -y crossbuild-essential-arm64 ninja-build curl unzip cmake
           python3 -m pip install --break-system-packages "cmake>=3.31"
 
       - name: Show versions
