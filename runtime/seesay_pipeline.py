@@ -120,6 +120,43 @@ PY = sys.executable or "python3"
 # We must not let two aplay processes fight over the embedded sound card, and
 # we must reap the child to avoid zombie processes on a device that runs for days.
 _active_prompt_proc = None
+# Cached working player command prefix for fixed prompts (device sound server
+# varies: plain aplay fails on this PipeWire device, paplay succeeds).
+_prompt_player = None
+
+
+def _play_wav_async(wav_path: str):
+    """Start a WAV playing asynchronously using the first working player.
+
+    Tries the same player list as seesay_speak.py. A player that fails instantly
+    (wrong sound card / no audio server) is skipped; the first one still playing
+    after a short probe is remembered for later calls. Returns the Popen handle
+    (still playing) or None if every player failed.
+    """
+    global _prompt_player
+    candidates = []
+    if _prompt_player:
+        candidates.append(_prompt_player)
+    candidates += [["aplay", "-q"], ["paplay"],
+                   ["aplay", "-q", "-D", "plughw:1,0"]]
+    tried = set()
+    for base in candidates:
+        key = tuple(base)
+        if key in tried:
+            continue
+        tried.add(key)
+        try:
+            proc = subprocess.Popen(base + [wav_path],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:  # noqa: BLE001 - player not installed
+            continue
+        try:
+            proc.wait(timeout=0.08)  # exited fast -> failed to open audio device
+            continue
+        except subprocess.TimeoutExpired:
+            _prompt_player = base   # still playing -> this one works
+            return proc
+    return None
 
 
 def _stop_active_prompt() -> None:
@@ -165,15 +202,13 @@ def speak(text: str, voice: str = "en") -> None:
     if PREREC_ENABLED and wav_name:
         wav_path = Path(AUDIO_DIR) / wav_name
         if wav_path.exists():
-            try:
-                global _active_prompt_proc
-                _active_prompt_proc = subprocess.Popen(
-                    ["aplay", "-q", str(wav_path)],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            global _active_prompt_proc
+            played = _play_wav_async(str(wav_path))
+            if played is not None:
+                _active_prompt_proc = played
                 return  # fire-and-forget: no espeak, no blocking
-            except Exception as exc:  # noqa: BLE001 - fall through to espeak
-                print(f"[pipeline] prerec play failed, using espeak: {exc}", file=sys.stderr)
-        # WAV missing -> fall back to espeak so the user still hears the prompt.
+            print("[pipeline] no audio player worked, using espeak", file=sys.stderr)
+        # WAV missing / no player -> fall back to espeak so the user still hears it.
 
     # Default path: espeak-ng synthesizes + plays (separate process, blocking).
     try:
