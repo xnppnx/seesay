@@ -405,10 +405,12 @@ void PPOCRv5::recognize(const cv::Mat& bgr, Object& object)
         last_token = index;
 
         if (index <= 0)
-            continue;
+            continue;  // CTC blank (v6 dictionary[0] is the empty blank token)
 
         Character ch;
-        ch.id = index - 1;
+        // PP-OCRv6 dictionary already includes the blank at index 0, so the
+        // character id IS the model index (no -1 shift like v5 needed).
+        ch.id = index;
         ch.prob = max_score;
 
         object.text.push_back(ch);
