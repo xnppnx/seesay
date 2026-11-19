@@ -261,10 +261,10 @@ void PPOCRv5::detect(const cv::Mat& bgr, std::vector<Object>& objects)
 
     ncnn::Extractor ex = ppocrv5_det.create_extractor();
 
-    ex.input("in0", in_pad);
+    ex.input("input", in_pad);
 
     ncnn::Mat out;
-    ex.extract("out0", out);
+    ex.extract("output", out);
 
     const float denorm_vals[1] = {255.f};
     out.substract_mean_normalize(0, denorm_vals);
@@ -375,10 +375,10 @@ void PPOCRv5::recognize(const cv::Mat& bgr, Object& object)
 
     ncnn::Extractor ex = ppocrv5_rec.create_extractor();
 
-    ex.input("in0", in);
+    ex.input("input", in);
 
     ncnn::Mat out;
-    ex.extract("out0", out);
+    ex.extract("output", out);
 
     // 18385 x len
     int last_token = 0;
