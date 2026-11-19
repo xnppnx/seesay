@@ -33,6 +33,7 @@
 #else
 #include "src/drivers/display/fb/lv_linux_fbdev.h"
 #endif
+#include <unistd.h>  // usleep: real sleep callback for LVGL delay (avoids busy-wait)
 #endif
 
 #ifndef APP_FRAMEBUFFER_DEVICE
@@ -152,6 +153,14 @@ int Application::run() {
     logger::Logger::set_tag("seesay");
 
     lv_init();
+
+#if !USE_DESKTOP
+    // Without a delay callback, LVGL's lv_delay_ms() busy-spins (burning ~100%
+    // CPU in the main loop). Desktop build registers SDL_Delay in
+    // DesktopSimulatorFrame; the on-device build must register its own real
+    // sleep so the 5ms idle in run() actually sleeps instead of spinning.
+    lv_delay_set_cb([](uint32_t ms) { usleep(ms * 1000); });
+#endif
 
     AssetManager assets;
     for (const auto& root : assets.roots()) {
