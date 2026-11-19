@@ -331,8 +331,13 @@ def capture() -> tuple[bool, str]:
     # out rotated 180 degrees. Flip both axes at capture time so the photo,
     # the on-screen thumbnail, AND the Mirage/OCR engines all see an upright
     # image (verified on-device: --hflip --vflip corrects the orientation).
-    cmd = ["rpicam-jpeg", "-n", "-t", "100", "--width", "1640",
-           "--height", "1232", "-q", "85", "--hflip", "--vflip",
+    # Stage-1 photo-display speedup: capture directly at 800x600 using the
+    # camera's hardware ISP scaler. Compared to 1640x1232 this saves ~300ms
+    # and removes the need to open/decode a large image and downscale it for
+    # the engines (they only ever used an 800-wide image anyway).
+    # Verified on-device: detection 0.707 vs 0.697, OCR 5/5 identical.
+    cmd = ["rpicam-jpeg", "-n", "-t", "100", "--width", "800",
+           "--height", "600", "-q", "85", "--hflip", "--vflip",
            "-o", PHOTO_PATH]
     try:
         proc = subprocess.run(cmd, timeout=30, stdout=subprocess.DEVNULL,
@@ -362,9 +367,11 @@ def downscale() -> bool:
             im.save(SMALL_PATH, "JPEG", quality=85)
 
             # Thumbnail: resize into a fixed-width frame, saved as PNG.
+            # BILINEAR + no PNG optimize saves ~33ms vs LANCZOS+optimize; at
+            # 120px wide the difference is invisible (verified on-device).
             if im.width > THUMB_MAX_WIDTH:
                 th = round(im.height * THUMB_MAX_WIDTH / im.width)
-                thumb = im.resize((THUMB_MAX_WIDTH, th), Image.LANCZOS)
+                thumb = im.resize((THUMB_MAX_WIDTH, th), Image.BILINEAR)
             else:
                 thumb = im.copy()
             # Stage-1: alternate filenames so LVGL's path-keyed image cache
@@ -375,7 +382,7 @@ def downscale() -> bool:
                 seq = 0
             seq += 1
             active = THUMB_A if seq % 2 == 1 else THUMB_B
-            thumb.save(active, "PNG", optimize=True)
+            thumb.save(active, "PNG", optimize=False)
             # Publish the active basename (no path) for the UI to load.
             Path(THUMB_SEQ).write_text(str(seq), encoding="utf-8")
             Path(THUMB_ACTIVE).write_text(Path(active).name, encoding="utf-8")
