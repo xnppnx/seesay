@@ -34,7 +34,6 @@
 #include <string>
 #include <vector>
 
-#include "ppocrv5_dict.h"
 #include "ppocrv6_tiny_dict.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -45,22 +44,6 @@ static std::string model_path(const char* file) {
     const char* dir = getenv("SEESAY_OCR_MODELS");
     if (!dir || !*dir) dir = "/usr/share/seesay/models";
     return std::string(dir) + "/" + file;
-}
-
-// Dual dictionary/model support (project book 8.9.15). Default is the proven
-// PP-OCRv5 mobile path; set SEESAY_OCR_VERSION=v6 to try PP-OCRv6 tiny.
-// The two dictionaries are NOT position-compatible, so the model AND the
-// character table must always switch together (mixing them yields garbage).
-static bool use_v6() {
-    const char* v = getenv("SEESAY_OCR_VERSION");
-    return v && std::string(v) == "v6";
-}
-
-static const char** active_dict() {
-    return use_v6() ? character_dict_v6 : character_dict;
-}
-static int active_dict_size() {
-    return use_v6() ? character_dict_v6_size : character_dict_size;
 }
 
 // Load an image into a BGR cv::Mat using stb_image (opencv-mobile 5.x has no
@@ -212,22 +195,17 @@ protected:
 
 bool PPOCRv5::init()
 {
-    const bool v6 = use_v6();
-    const char* det_param = v6 ? "PP_OCRv6_tiny_det.ncnn.param" : "PP_OCRv5_mobile_det.ncnn.param";
-    const char* det_bin   = v6 ? "PP_OCRv6_tiny_det.ncnn.bin"   : "PP_OCRv5_mobile_det.ncnn.bin";
-    const char* rec_param = v6 ? "PP_OCRv6_tiny_rec.ncnn.param" : "PP_OCRv5_mobile_rec.ncnn.param";
-    const char* rec_bin   = v6 ? "PP_OCRv6_tiny_rec.ncnn.bin"   : "PP_OCRv5_mobile_rec.ncnn.bin";
-
+    // PP-OCRv6 tiny (project book 8.9.15): single dictionary, fixed model names.
     ppocrv5_det.opt.use_vulkan_compute = false;  // SeeSay: CPU-only ncnn build
-    if (ppocrv5_det.load_param(model_path(det_param).c_str()) != 0)
+    if (ppocrv5_det.load_param(model_path("PP_OCRv6_tiny_det.ncnn.param").c_str()) != 0)
         return false;
-    if (ppocrv5_det.load_model(model_path(det_bin).c_str()) != 0)
+    if (ppocrv5_det.load_model(model_path("PP_OCRv6_tiny_det.ncnn.bin").c_str()) != 0)
         return false;
 
     ppocrv5_rec.opt.use_vulkan_compute = false;  // SeeSay: CPU-only ncnn build
-    if (ppocrv5_rec.load_param(model_path(rec_param).c_str()) != 0)
+    if (ppocrv5_rec.load_param(model_path("PP_OCRv6_tiny_rec.ncnn.param").c_str()) != 0)
         return false;
-    if (ppocrv5_rec.load_model(model_path(rec_bin).c_str()) != 0)
+    if (ppocrv5_rec.load_model(model_path("PP_OCRv6_tiny_rec.ncnn.bin").c_str()) != 0)
         return false;
 
     return true;
@@ -503,11 +481,11 @@ static std::string object_text(const Object& obj) {
         const Character& ch = obj.text[j];
         prob_sum += ch.prob;
         prob_count++;
-        if (ch.id >= active_dict_size()) {
+        if (ch.id >= character_dict_size) {
             if (!text.empty() && text.back() != ' ') text += " ";
             continue;
         }
-        text += active_dict()[ch.id];
+        text += character_dict[ch.id];
     }
     const float avg_conf = prob_count > 0 ? (float)(prob_sum / prob_count) : 0.f;
     if (avg_conf < min_conf) return "";  // discard the whole line, never part of it

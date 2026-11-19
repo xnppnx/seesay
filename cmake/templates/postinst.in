@@ -32,8 +32,8 @@ if [ "$1" = "configure" ] && [ -d "$WHEELS" ]; then
         mkdir -p /usr/share/seesay/bin /usr/share/seesay/models
         cp -f "$PAYLOAD/bin/seesay_ocr" /usr/share/seesay/bin/seesay_ocr
         chmod 0755 /usr/share/seesay/bin/seesay_ocr
-        if [ -d "$PAYLOAD/models/ppocrv5" ]; then
-            cp -f "$PAYLOAD/models/ppocrv5"/* /usr/share/seesay/models/
+        if [ -d "$PAYLOAD/models/ppocrv6" ]; then
+            cp -f "$PAYLOAD/models/ppocrv6"/* /usr/share/seesay/models/
         fi
     fi
 

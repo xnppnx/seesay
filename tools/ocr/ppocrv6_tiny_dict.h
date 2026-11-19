@@ -1,6 +1,6 @@
 // PP-OCRv6 tiny character dictionary (6906 chars, Apache-2.0 via PaddleOCR)
-// Auto-generated from ppocr_keys_v6_tiny.txt for the dual-dict OCR engine.
-static const char* character_dict_v6[] = {
+// Auto-generated from ppocr_keys_v6_tiny.txt (PaddleOCR PP-OCRv6 tiny).
+static const char* character_dict[] = {
     "",
     "!",
     "\"",
@@ -6908,4 +6908,4 @@ static const char* character_dict_v6[] = {
     "￥",
     " ",
 };
-static const int character_dict_v6_size = sizeof(character_dict_v6)/sizeof(const char*);
+static const int character_dict_size = sizeof(character_dict)/sizeof(const char*);
