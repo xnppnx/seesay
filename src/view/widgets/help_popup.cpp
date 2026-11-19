@@ -23,7 +23,7 @@ struct HelpRow {
 
 constexpr std::array<HelpRow, 5> kAppleRows = {{
     {"SPACE", "Shoot & speak"},
-    {"OK / ESC", "Replay result"},
+    {"OK", "Replay result"},
     {"fn+H", "This help"},
     {"C", "Clear result"},
     {"HOLD ESC", "Go HOME (system)"},
@@ -31,7 +31,7 @@ constexpr std::array<HelpRow, 5> kAppleRows = {{
 
 constexpr std::array<HelpRow, 3> kButterRows = {{
     {"SPACE", "Shoot & speak"},
-    {"OK / ESC", "Replay result"},
+    {"OK", "Replay result"},
     {"HOLD ESC", "Go HOME (system)"},
 }};
 

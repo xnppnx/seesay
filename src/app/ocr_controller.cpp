@@ -54,6 +54,15 @@ bool OcrController::handle_key(uint32_t key, bool long_pressed) {
         return true;
     }
 
+    // A plain short ESC must be consumed (do nothing). If we let it fall
+    // through as "not consumed", linux_input dispatches it as a navigation
+    // key and the system exits the app immediately -- so a deliberate LONG
+    // ESC never gets the chance to fire the HOME action. Official key spec:
+    // short ESC = no side effect, long ESC = system HOME (project book 6.1).
+    if (key == LV_KEY_ESC) {
+        return true;
+    }
+
     // SPACE = take a photo and speak the result.
     if (key == ' ') {
         toast_->hide();

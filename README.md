@@ -20,7 +20,7 @@ Everything runs locally. The app never connects to the network.
 | --- | --- |
 | **SPACE** | Take a photo, describe it, and speak the result |
 | **OK / Enter** | Replay the last announcement |
-| **ESC** (short) | Replay / go back |
+| **ESC** (short) | No action (reserved) |
 | **ESC** (long) | Return to HOME (handled by the system) |
 | **fn + H** | Show / hide key help |
 | **fn + S / D / A** | Volume down / up / mute |

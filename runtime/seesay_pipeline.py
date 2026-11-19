@@ -291,8 +291,8 @@ def run_ocr(image: str) -> dict:
     return run_script("seesay_readtext.py", image)
 
 
-def run_detect(image: str) -> dict:
-    """Detect objects, preferring the C++ ncnn NanoDet subprocess over Mirage.
+def _run_detect_once(image: str) -> dict:
+    """Single-orientation detection: C++ ncnn NanoDet, fallback to Python Mirage.
 
     Output shape matches seesay_describe.py ({"ok":..., "objects":[...]}), so
     build_sentence / speech / UI need no changes. If the C++ binary is missing
@@ -319,6 +319,48 @@ def run_detect(image: str) -> dict:
         except Exception as exc:  # noqa: BLE001
             print(f"[pipeline] C++ detect error, falling back: {exc}", file=sys.stderr)
     return run_script("seesay_describe.py", image)
+
+
+def run_detect(image: str) -> dict:
+    """Detect objects, tolerating a sideways-held camera (project book 8.9.14).
+
+    Blind users often hold the device sideways, so the frame can be rotated
+    90 degrees. NanoDet sees a rotated image and finds nothing, while the text
+    is still readable -> the user hears only text and thinks the object was
+    skipped. Try the upright frame first (no cost in the normal case); only if
+    it finds no objects, retry 90/180/270 rotations and keep the best result.
+    """
+    first = _run_detect_once(image)
+    if first.get("ok") and first.get("objects"):
+        return first  # normal upright shot: single pass, no added latency
+
+    def score(res: dict) -> float:
+        return sum(float(o.get("confidence", 0.0))
+                   for o in res.get("objects", []) if isinstance(o, dict))
+
+    best = first
+    best_score = score(first)
+    try:
+        from PIL import Image
+        data_dir = Path(image).parent
+        with Image.open(image) as im0:
+            upright = im0.convert("RGB")
+            for angle in (90, 180, 270):
+                rotated = data_dir / f"detect_rot_{angle}.jpg"
+                try:
+                    upright.rotate(angle, expand=True).save(
+                        str(rotated), "JPEG", quality=85)
+                    candidate = _run_detect_once(str(rotated))
+                    if candidate.get("ok") and score(candidate) > best_score:
+                        best, best_score = candidate, score(candidate)
+                finally:
+                    try:
+                        rotated.unlink()
+                    except OSError:
+                        pass
+    except Exception as exc:  # noqa: BLE001 - rotation is best-effort
+        print(f"[pipeline] rotation detect skipped: {exc}", file=sys.stderr)
+    return best
 
 
 def capture() -> tuple[bool, str]:

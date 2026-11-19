@@ -127,7 +127,7 @@ def draw_screens() -> None:
 
     img, d = base_screen("SeeSay", "HELP", AMBER)
     d.text((14, 44), "SPACE   take photo & speak", fill=DARK_TEXT)
-    d.text((14, 62), "OK / ESC  replay result", fill=DARK_TEXT)
+    d.text((14, 62), "OK       replay result", fill=DARK_TEXT)
     d.text((14, 80), "fn+H     toggle this help", fill=DARK_TEXT)
     d.text((14, 98), "fn+S/D/A volume", fill=DARK_TEXT)
     d.text((14, 116), "hold ESC go HOME (system)", fill=(150, 165, 190))
