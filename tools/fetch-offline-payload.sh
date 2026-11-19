@@ -20,7 +20,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 PAYLOAD="$ROOT/payload"
 mkdir -p "$PAYLOAD/wheels" "$PAYLOAD/models/mirage" "$PAYLOAD/models/rapidocr" \
-         "$PAYLOAD/models/ppocrv5" "$PAYLOAD/models/nanodet" \
+         "$PAYLOAD/models/ppocrv5" "$PAYLOAD/models/ppocrv6" "$PAYLOAD/models/nanodet" \
          "$PAYLOAD/espeak" "$PAYLOAD/bin"
 
 # NOTE: file downloads use <host>/<owner>/<repo>/resolve/<rev>/<file>.
@@ -61,6 +61,19 @@ done
 # seesay_ocr binary is cross-built by tools/build-ncnn-ocr.sh in the ncnn job
 # and placed into $PAYLOAD/bin before packaging.
 echo "PP-OCRv5 models ready (seesay_ocr binary comes from the ncnn build job)."
+
+# [3b2/4] PP-OCRv6 tiny models (dual-dict A/B option, project book 8.9.15).
+# Checked into the repo (3 MB) because upstream only ships them inside a 231 MB
+# archive. The engine switches v5/v6 via SEESAY_OCR_VERSION at runtime.
+echo "== [3b2/4] PP-OCRv6 tiny ncnn models (optional A/B) =="
+V6_SRC="$ROOT/tools/ocr/v6_models"
+if [ -d "$V6_SRC" ]; then
+  cp -f "$V6_SRC"/PP_OCRv6_tiny_*.param "$V6_SRC"/PP_OCRv6_tiny_*.bin \
+        "$V6_SRC"/ppocr_keys_v6_tiny.txt "$PAYLOAD/models/ppocrv6/"
+  echo "PP-OCRv6 tiny models ready."
+else
+  echo "  WARN: v6 model dir missing; engine will stay v5-only."
+fi
 
 echo "== [3c/4] NanoDet ncnn models (stage-2 C++ object detection) =="
 for f in nanodet_m.param nanodet_m.bin; do
@@ -111,6 +124,9 @@ if [ -f "$HERE/bin/seesay_ocr" ]; then
   install -m 0755 "$HERE/bin/seesay_ocr" /usr/share/seesay/bin/seesay_ocr
   if [ -d "$HERE/models/ppocrv5" ]; then
     cp -f "$HERE/models/ppocrv5"/* /usr/share/seesay/models/
+  fi
+  if [ -d "$HERE/models/ppocrv6" ]; then
+    cp -f "$HERE/models/ppocrv6"/* /usr/share/seesay/models/
   fi
   echo "  seesay_ocr installed; OCR now uses ncnn (11-12s -> ~1-2s)."
 else
