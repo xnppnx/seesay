@@ -137,7 +137,10 @@ def _play_wav_async(wav_path: str):
     candidates = []
     if _prompt_player:
         candidates.append(_prompt_player)
-    candidates += [["aplay", "-q"], ["paplay"],
+    # CardputerZero routes its speaker through PipeWire: paplay is the reliable
+    # path (plain aplay opens the unused HDMI card and fails with error 524).
+    # Try paplay first; keep aplay variants as fallbacks for other images.
+    candidates += [["paplay"], ["aplay", "-q"],
                    ["aplay", "-q", "-D", "plughw:1,0"]]
     tried = set()
     for base in candidates:
@@ -151,8 +154,10 @@ def _play_wav_async(wav_path: str):
         except Exception:  # noqa: BLE001 - player not installed
             continue
         try:
-            proc.wait(timeout=0.08)  # exited fast -> failed to open audio device
-            continue
+            # A failed player (bad sound card) exits in ~0.02s; a working one
+            # keeps playing for seconds. 0.15s reliably separates the two.
+            proc.wait(timeout=0.15)
+            continue  # exited early -> failed, try next player
         except subprocess.TimeoutExpired:
             _prompt_player = base   # still playing -> this one works
             return proc
