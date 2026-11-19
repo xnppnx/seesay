@@ -1,0 +1,6 @@
+# Keep ncnn model/bin and dictionary files byte-exact across platforms.
+# Without this, Windows checkouts may convert LF to CRLF and corrupt them.
+*.bin binary
+*.param binary
+*.cact binary
+*.txt -text
